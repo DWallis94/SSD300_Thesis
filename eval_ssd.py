@@ -345,7 +345,7 @@ def ssd_model_fn(features, labels, mode, params):
 
     cls_pred = tf.boolean_mask(cls_pred, final_mask)
     location_pred = tf.boolean_mask(location_pred, tf.stop_gradient(positive_mask))
-    flaten_cls_targets = tf.boolean_mask(tf.clip_by_value(flaten_cls_targets, 0, params['num_classes']), final_mask)
+    flaten_cls_targets = tf.boolean_mask(tf.clip_by_value(flaten_cls_targets, 0, params['num_classes'] - 1), final_mask)
     flaten_loc_targets = tf.stop_gradient(tf.boolean_mask(flaten_loc_targets, positive_mask))
 
     # Calculate loss, which includes softmax cross entropy and L2 regularization.
