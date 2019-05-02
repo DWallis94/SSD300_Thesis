@@ -1,0 +1,5 @@
+Vision Type, Detection Algorithm, Frame, Detection Class, Detection Probability, left, top, right, bottom, adj left, adj top, adj right, adj bottom, volume
+auto, ssd300, frame_index_014208_to_014271_00000.png, motorbike, 0.523, 1656.0, 725.0, 1920.0, 1061.0, , , , , 88704.000000
+auto, ssd300, frame_index_014208_to_014271_00000.png, person, 0.974, 1706.0, 624.0, 1920.0, 1012.0, , , , , 83032.000000
+auto, ssd300, frame_index_014208_to_014271_00001.png, motorbike, 0.523, 1660.0, 741.0, 1920.0, 1064.0, , , , , 83980.000000
+auto, ssd300, frame_index_014208_to_014271_00001.png, person, 0.858, 1720.0, 639.0, 1920.0, 1022.0, , , , , 76600.000000
