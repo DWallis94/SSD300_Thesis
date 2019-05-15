@@ -374,7 +374,7 @@ def _process_dataset(name, directory, all_splits, num_shards):
 
   for split in all_splits:
     main_path   = os.path.join(directory, split, 'ImageSets\\Main')
-    jpegs       = []
+    jpeg_lst       = []
 
     for cls in dataset_common.VOC_LABELS_reduced:
         if cls != "none":
@@ -384,11 +384,26 @@ def _process_dataset(name, directory, all_splits, num_shards):
                 cls_im_lst = os.path.join(main_path, cls + '_trainval.txt')
             with open(cls_im_lst, 'r') as f:
                 for line in f:
-                    jpegs.append(line.split(" ")[0] + ".jpg")
+                    jpeg_lst.append(line.split(" ")[0] + ".jpg")
                 f.close()
 
+    del_lst = []
+    for im in jpeg_lst:
+       anna_file = os.path.join(directory, split, 'Annotations', im.replace('jpg', 'xml'))
+       tree = xml_tree.parse(anna_file)
+       root = tree.getroot()
+       relevant_lst = []
+       for obj in root.findall('object'):
+           label = obj.find('name').text
+           if label in dataset_common.VOC_LABELS_reduced:
+               relevant_lst.append(label)
+       if not relevant_lst:
+           del_lst.append(im)
+    for im in del_lst:
+        jpeg_lst.remove(im)
+
     jpeg_file_path = os.path.join(directory, split, 'JPEGImages')
-    jpegs = [im_name for im_name in jpegs if im_name.strip()[-3:]=='jpg']
+    jpegs = [im_name for im_name in jpeg_lst if im_name.strip()[-3:]=='jpg']
     all_records.extend(list(zip([split] * len(jpegs), jpegs)))
 
   shuffled_index = list(range(len(all_records)))
