@@ -371,16 +371,25 @@ def _process_dataset(name, directory, all_splits, num_shards):
     num_shards: integer number of shards for this data set.
   """
   all_records = []
+
   for split in all_splits:
+    main_path   = os.path.join(directory, split, 'ImageSets\\Main')
+    jpegs       = []
+
+    for cls in dataset_common.VOC_LABELS_reduced:
+        if cls != "none":
+            if "test" in split.lower():
+                cls_im_lst = os.path.join(main_path, cls + '_test.txt')
+            else:
+                cls_im_lst = os.path.join(main_path, cls + '_trainval.txt')
+            with open(cls_im_lst, 'r') as f:
+                for line in f:
+                    jpegs.append(line.split(" ")[0] + ".jpg")
+                f.close()
+
     jpeg_file_path = os.path.join(directory, split, 'JPEGImages')
-    images = tf.gfile.ListDirectory(jpeg_file_path)
-    jpegs = [im_name for im_name in images if im_name.strip()[-3:]=='jpg']
+    jpegs = [im_name for im_name in jpegs if im_name.strip()[-3:]=='jpg']
     all_records.extend(list(zip([split] * len(jpegs), jpegs)))
-	
-    #with open('test.txt', 'w+') as f:
-    #    for i in all_records:
-    #        f.write(str(i) + '\n')
-    #    f.close()
 
   shuffled_index = list(range(len(all_records)))
   random.seed(RANDOM_SEED)
