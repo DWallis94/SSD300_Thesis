@@ -70,6 +70,9 @@ tf.app.flags.DEFINE_string(
 tf.app.flags.DEFINE_boolean(
     'just_labels', False,
     'Should the program just output the labels, or labels + super-imposed images?')
+tf.app.flags.DEFINE_string(
+    'specify_gpu', None,
+    'Which GPU(s) to use, in a string (e.g. `0,1,2`) If `None`, uses all available.')
 
 FLAGS = tf.app.flags.FLAGS
 
@@ -220,6 +223,8 @@ def write_labels_to_file(image_input, all_labels, all_scores, all_bboxes, shape_
                                    left, top, right, bottom,(right - left)*(bottom - top)))
 
 def main(_):
+    if FLAGS.specify_gpu!=None:
+        os.environ['CUDA_VISIBLE_DEVICES'] = FLAGS.specify_gpu
     with tf.Graph().as_default():
         out_shape = [FLAGS.train_image_size] * 2
 
