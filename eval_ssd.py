@@ -23,7 +23,8 @@ import tensorflow as tf
 
 import numpy as np
 
-from net import ssd_net
+from net import ssd_net_high
+from net import ssd_net_low
 
 from dataset import dataset_common
 from preprocessing import ssd_preprocessing
@@ -47,7 +48,7 @@ tf.app.flags.DEFINE_string(
     'data_dir', '../VOCROOT/tfrecords',
     'The directory where the dataset input data is stored.')
 tf.app.flags.DEFINE_integer(
-    'num_classes', 21, 'Number of classes to use in the dataset.')
+    'num_classes', 2, 'Number of classes to use in the dataset.')
 tf.app.flags.DEFINE_string(
     'model_dir', './logs/',
     'The directory where the model will be stored.')
@@ -106,6 +107,9 @@ tf.app.flags.DEFINE_boolean(
 tf.app.flags.DEFINE_string(
     'specify_gpu', '0',
     'Which GPU(s) to use, in a string (e.g. `0,1,2`) If `None`, uses all available.')
+tf.app.flags.DEFINE_boolean(
+    'low_precision', False,
+    'Whether the network uses ssd_net_high or ssd_net_low (for low precision).')
 
 FLAGS = tf.app.flags.FLAGS
 
@@ -283,10 +287,17 @@ def ssd_model_fn(features, labels, mode, params):
     all_num_anchors_depth = global_anchor_info['all_num_anchors_depth']
 
     with tf.variable_scope(params['model_scope'], default_name=None, values=[features], reuse=tf.AUTO_REUSE):
-        backbone = ssd_net.VGG16Backbone(params['data_format'])
-        feature_layers = backbone.forward(features, training=(mode == tf.estimator.ModeKeys.TRAIN))
-        #print(feature_layers)
-        location_pred, cls_pred = ssd_net.multibox_head(feature_layers, params['num_classes'], all_num_anchors_depth, data_format=params['data_format'])
+        if FLAGS.low_precision:
+            backbone = ssd_net_low.VGG16Backbone(params['data_format'])
+            feature_layers = backbone.forward(features, training=(mode == tf.estimator.ModeKeys.TRAIN))
+			
+            location_pred, cls_pred = ssd_net_low.multibox_head(feature_layers, params['num_classes'], all_num_anchors_depth, data_format=params['data_format'])
+        else:
+            backbone = ssd_net_high.VGG16Backbone(params['data_format'])
+            feature_layers = backbone.forward(features, training=(mode == tf.estimator.ModeKeys.TRAIN))
+     
+            location_pred, cls_pred = ssd_net_high.multibox_head(feature_layers, params['num_classes'], all_num_anchors_depth, data_format=params['data_format'])
+
         if params['data_format'] == 'channels_first':
             cls_pred = [tf.transpose(pred, [0, 2, 3, 1]) for pred in cls_pred]
             location_pred = [tf.transpose(pred, [0, 2, 3, 1]) for pred in location_pred]
@@ -469,7 +480,7 @@ def main(_):
         file.write('Vision Type, Detection Algorithm, Frame, Detection Class, Detection Probability, left, top, right, bottom, adj left, adj top, adj right, adj bottom, volume\n')
         for image_ind, pred in enumerate(det_results):
             for class_ind in range(1, FLAGS.num_classes):
-                for cls_name, cls_pair in dataset_common.VOC_LABELS.items():
+                for cls_name, cls_pair in dataset_common.VOC_LABELS_reduced.items():
                     if cls_pair[0] == class_ind:
                         class_name = cls_name
                 scores = pred['scores_{}'.format(class_ind)]

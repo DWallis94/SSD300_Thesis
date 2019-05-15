@@ -190,7 +190,7 @@ def slim_get_batch(num_classes, batch_size, split_name, file_pattern, num_reader
     decoder = slim.tfexample_decoder.TFExampleDecoder(keys_to_features, items_to_handlers)
 
     labels_to_names = {}
-    for name, pair in VOC_LABELS.items():
+    for name, pair in VOC_LABELS_reduced.items():
         labels_to_names[pair[0]] = name
 
     dataset = slim.dataset.Dataset(

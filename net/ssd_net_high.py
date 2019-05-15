@@ -21,6 +21,7 @@ import tensorflow as tf
 _BATCH_NORM_DECAY = 0.9
 _BATCH_NORM_EPSILON = 1e-5
 _USE_FUSED_BN = True
+_DROPOUT_RATE = 0.5
 
 # vgg_16/conv2/conv2_1/biases
 # vgg_16/conv4/conv4_3/biases
@@ -135,9 +136,9 @@ class VGG16Backbone(object):
         dilation = [1, 6, 6, 6]
         dilation[self._bn_axis] = 1
         inputs = self.conv_block(inputs, filters=1024, kernel_size=3, strides=[1,1,1,1], padding='SAME', dilations=dilation,
-                                activation=tf.nn.relu, use_bias=True, name='fc6', reuse=None)
+                                activation=tf.nn.relu, batch_norm=False, use_bias=True, name='fc6', reuse=None)
         inputs = self.conv_block(inputs, filters=1024, kernel_size=1, strides=[1,1,1,1], padding='SAME',
-                                activation=tf.nn.relu, use_bias=True, name='fc7', reuse=None)
+                                activation=tf.nn.relu, batch_norm=False, use_bias=True, name='fc7', reuse=None)
         # fc7
         feature_layers.append(inputs)
         
@@ -171,7 +172,7 @@ class VGG16Backbone(object):
         return feature_layers
 
     def conv_block(self, inputs, filters, kernel_size, strides, name, padding='SAME', dilations=[1, 1, 1, 1],
-                    activation=tf.nn.relu, use_bias=True, reuse=None):
+                    activation=tf.nn.relu, batch_norm=True, use_bias=True, reuse=None):
         with tf.variable_scope(name):
             data_format = "NHWC" if self._data_format == 'channels_last' else "NCHW"
             filter_shape = [ kernel_size, kernel_size, inputs.shape[self._bn_axis], filters ]
@@ -182,8 +183,11 @@ class VGG16Backbone(object):
                                 data_format=data_format,dilations=dilations,name=name)
             tf.summary.histogram( "act", conv )
             conv = tf.nn.bias_add(conv, bias, data_format=data_format)
-            conv = tf.layers.batch_normalization(conv,axis=self._bn_axis, momentum=_BATCH_NORM_DECAY, epsilon=_BATCH_NORM_EPSILON, fused=_USE_FUSED_BN,
+            if batch_norm:
+                conv = tf.layers.batch_normalization(conv,axis=self._bn_axis, momentum=_BATCH_NORM_DECAY, epsilon=_BATCH_NORM_EPSILON, fused=_USE_FUSED_BN,
                         reuse=None)
+            else:
+                conv = tf.layers.dropout(conv, rate=_DROPOUT_RATE)
             tf.summary.histogram( "act_bn", conv )
             conv = tf.nn.relu(conv)
             tf.summary.histogram( "act_bn_r", conv )

@@ -46,7 +46,7 @@ tf.app.flags.DEFINE_string(
     'data_dir', '../VOCROOT/tfrecords',
     'The directory where the dataset input data is stored.')
 tf.app.flags.DEFINE_integer(
-    'num_classes', 21, 'Number of classes to use in the dataset.')
+    'num_classes', 2, 'Number of classes to use in the dataset.')
 tf.app.flags.DEFINE_string(
     'model_dir', './logs/',
     'The directory where the model will be stored.')
@@ -357,6 +357,7 @@ def ssd_model_fn(features, labels, mode, params):
 
                 cls_pred = tf.boolean_mask(cls_pred, final_mask)
                 location_pred = tf.boolean_mask(location_pred, tf.stop_gradient(positive_mask))
+
                 flaten_cls_targets = tf.boolean_mask(tf.clip_by_value(flaten_cls_targets, 0, params['num_classes'] - 1), final_mask)
                 flaten_loc_targets = tf.stop_gradient(tf.boolean_mask(flaten_loc_targets, positive_mask))
                 
@@ -375,15 +376,24 @@ def ssd_model_fn(features, labels, mode, params):
     if mode == tf.estimator.ModeKeys.PREDICT:
         return tf.estimator.EstimatorSpec(mode=mode, predictions=predictions)
 
-    # Calculate loss, which includes softmax cross entropy and L2 regularization.
-    #cross_entropy = tf.cond(n_positives > 0, lambda: tf.losses.sparse_softmax_cross_entropy(labels=flaten_cls_targets, logits=cls_pred), lambda: 0.)# * (params['negative_ratio'] + 1.)
-    flaten_cls_targets=tf.Print(flaten_cls_targets, [flaten_loc_targets], summarize=10)
-	#flaten_cls_targets=tf.Print(flaten_cls_targets, [flaten_loc_targets],summarize=50000)
-    cross_entropy = tf.losses.sparse_softmax_cross_entropy(labels=flaten_cls_targets, logits=cls_pred) * (params['negative_ratio'] + 1.)
+## Reduced Classes Issue:
 
-    with open('test.txt', 'a+') as f:
-        f.write(str(flaten_cls_targets) + '\n' + str(cls_pred))
-        f.close()
+#Found that reducing the number of classes affected the tensor flaten_cls_targets s.t. it would have the incorrect range.
+#E.g. Classes: 0=none, 1=car yielded flaten_cls_targets=[0, 1, 2]?!
+#Didn't apply to either 1 class/21 classes for some reason?!
+
+#Inelegant solution: use flaten_cls_targets = tf.minimum(flaten_cls_targets, FLAGS.num_classes - 1)
+
+#(Don't judge me, it works OK?)
+
+#Test with: #flaten_cls_targets=tf.Print(flaten_cls_targets, [tf.reduce_max(flaten_cls_targets)], summarize=1000)
+
+    # Calculate loss, which includes softmax cross entropy and L2 regularization.
+    #cross_entropy = tf.cond(n_positives > 0, lambda: tf.losses.sparse_softmax_cross_entropy(labels=flaten_cls_targets, logits=cls_pred), lambda: 0.) * (params['negative_ratio'] + 1.)
+
+    #flaten_cls_targets=tf.Print(flaten_cls_targets, [flaten_cls_targets], summarize=1000)
+
+    cross_entropy = tf.losses.sparse_softmax_cross_entropy(labels=flaten_cls_targets, logits=cls_pred) * (params['negative_ratio'] + 1.)
 
     # Create a tensor named cross_entropy for logging purposes.
     tf.identity(cross_entropy, name='cross_entropy_loss')

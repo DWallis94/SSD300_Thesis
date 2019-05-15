@@ -34,7 +34,7 @@ VOC2007TEST
     ...
     ImageSets
 '''
-dataset_path = 'G:/Danny University Stuff/Thesis/VOCROOT/VOC2007TEST/'
+dataset_path = '../VOCROOT/VOC2007TEST/'
 #dataset_path = '/media/rs/7A0EE8880EE83EAF/Detections/PASCAL/VOC/VOC2007TEST'
 # change above path according to your system settings
 pred_path = './logs/predict'
@@ -71,7 +71,7 @@ def do_python_eval(use_07=True):
         print('VOC07 metric? ' + ('Yes' if use_07_metric else 'No'))
         if not os.path.isdir(output_path):
             os.mkdir(output_path)
-        for cls_name, cls_pair in dataset_common.VOC_LABELS.items():
+        for cls_name, cls_pair in dataset_common.VOC_LABELS_reduced.items():
             if 'none' in cls_name:
                 continue
             cls_id = cls_pair[0]

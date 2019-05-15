@@ -62,7 +62,7 @@ tf.app.flags.DEFINE_string(
     'Model scope name used to replace the name_scope in checkpoint.')
 ##Input data folder
 tf.app.flags.DEFINE_string(
-    'input_data', 'G:/Danny University Stuff/Thesis/VOCROOT/real_dataset/',
+    'input_data', '../VOCROOT_reduced/real_dataset/',
     'Specify the location of the input dataset to apply the trained network.')
 tf.app.flags.DEFINE_string(
     'output_data', './output/',
@@ -159,7 +159,7 @@ def parse_by_class(cls_pred, bboxes_pred, num_classes, select_threshold, min_siz
     
 def gain_translate_table():
     label2name_table = {}
-    for class_name, labels_pair in dataset_common.VOC_LABELS.items():
+    for class_name, labels_pair in dataset_common.VOC_LABELS_reduced.items():
         label2name_table[labels_pair[0]] = class_name
     return label2name_table
 
