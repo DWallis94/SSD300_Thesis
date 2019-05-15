@@ -128,7 +128,7 @@ tf.app.flags.DEFINE_boolean(
     'Whether there is GPU to use for training.')
 ## Added new flag to allow specification which GPUs to use
 tf.app.flags.DEFINE_string(
-    'specify_gpu', None,
+    'specify_gpu', '0',
     'Which GPU(s) to use, in a string (e.g. `0,1,2`) If `None`, uses all available.')
 ## Added new flag to allow specification of low or high precision
 tf.app.flags.DEFINE_boolean(

@@ -236,28 +236,31 @@ def _find_image_bounding_boxes(directory, cur_record):
   for obj in root.findall('object'):
       label = obj.find('name').text
       if label in dataset_common.VOC_LABELS_reduced:
-          
           labels.append(int(dataset_common.VOC_LABELS_reduced[label][0]))
           labels_text.append(label.encode('ascii'))
+      else:
+          labels.append(0)
+          labels_text.append('none'.encode('ascii'))
 
-          isdifficult = obj.find('difficult')
-          if isdifficult is not None:
-              difficult.append(int(isdifficult.text))
-          else:
-              difficult.append(0)
+      isdifficult = obj.find('difficult')
+      if isdifficult is not None:
+          difficult.append(int(isdifficult.text))
+      else:
+          difficult.append(0)
 
-          istruncated = obj.find('truncated')
-          if istruncated is not None:
-              truncated.append(int(istruncated.text))
-          else:
-              truncated.append(0)
+      istruncated = obj.find('truncated')
+      if istruncated is not None:
+          truncated.append(int(istruncated.text))
+      else:
+          truncated.append(0)
 
-          bbox = obj.find('bndbox')
-          bboxes.append((float(bbox.find('ymin').text) / shape[0],
-                         float(bbox.find('xmin').text) / shape[1],
-                         float(bbox.find('ymax').text) / shape[0],
-                         float(bbox.find('xmax').text) / shape[1]
-                          ))
+      bbox = obj.find('bndbox')
+      bboxes.append((float(bbox.find('ymin').text) / shape[0],
+                     float(bbox.find('xmin').text) / shape[1],
+                     float(bbox.find('ymax').text) / shape[0],
+                     float(bbox.find('xmax').text) / shape[1]
+                     ))
+						  
   return bboxes, labels, labels_text, difficult, truncated
 
 def _process_image_files_batch(coder, thread_index, ranges, name, directory, all_records, num_shards):
@@ -387,20 +390,20 @@ def _process_dataset(name, directory, all_splits, num_shards):
                     jpeg_lst.append(line.split(" ")[0] + ".jpg")
                 f.close()
 
-    del_lst = []
-    for im in jpeg_lst:
-       anna_file = os.path.join(directory, split, 'Annotations', im.replace('jpg', 'xml'))
-       tree = xml_tree.parse(anna_file)
-       root = tree.getroot()
-       relevant_lst = []
-       for obj in root.findall('object'):
-           label = obj.find('name').text
-           if label in dataset_common.VOC_LABELS_reduced:
-               relevant_lst.append(label)
-       if not relevant_lst:
-           del_lst.append(im)
-    for im in del_lst:
-        jpeg_lst.remove(im)
+    #del_lst = []
+    #for im in jpeg_lst:
+    #   anna_file = os.path.join(directory, split, 'Annotations', im.replace('jpg', 'xml'))
+    #   tree = xml_tree.parse(anna_file)
+    #   root = tree.getroot()
+    #   relevant_lst = []
+    #   for obj in root.findall('object'):
+    #       label = obj.find('name').text
+    #       if label in dataset_common.VOC_LABELS_reduced:
+    #           relevant_lst.append(label)
+    #   if not relevant_lst:
+    #       del_lst.append(im)
+    #for im in del_lst:
+    #    jpeg_lst.remove(im)
 
     jpeg_file_path = os.path.join(directory, split, 'JPEGImages')
     jpegs = [im_name for im_name in jpeg_lst if im_name.strip()[-3:]=='jpg']
