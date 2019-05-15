@@ -45,7 +45,7 @@ tf.app.flags.DEFINE_float(
     'gpu_memory_fraction', 1., 'GPU memory fraction to use.')
 # scaffold related configuration
 tf.app.flags.DEFINE_string(
-    'data_dir', '../VOCROOT/tfrecords',
+    'data_dir', '../VOCROOT_reduced/tfrecords',
     'The directory where the dataset input data is stored.')
 tf.app.flags.DEFINE_integer(
     'num_classes', 2, 'Number of classes to use in the dataset.')
@@ -105,7 +105,7 @@ tf.app.flags.DEFINE_boolean(
     'Whether to use the imgnet dataset on the server.')
 ## Added new flag to allow specification which GPUs to use
 tf.app.flags.DEFINE_string(
-    'specify_gpu', '0',
+    'specify_gpu', False,
     'Which GPU(s) to use, in a string (e.g. `0,1,2`) If `None`, uses all available.')
 tf.app.flags.DEFINE_boolean(
     'low_precision', False,

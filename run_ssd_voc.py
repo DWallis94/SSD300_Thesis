@@ -77,7 +77,7 @@ tf.app.flags.DEFINE_boolean(
     'low_precision', False,
     'Whether the network uses ssd_net_high or ssd_net_low (for low precision).')
 tf.app.flags.DEFINE_string(
-    'specify_gpu', '0',
+    'specify_gpu', False,
     'Which GPU(s) to use, in a string (e.g. `0,1,2`) If `None`, uses all available.')
 
 FLAGS = tf.app.flags.FLAGS
