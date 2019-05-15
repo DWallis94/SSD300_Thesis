@@ -65,7 +65,7 @@ tf.app.flags.DEFINE_string(
     'Model scope name used to replace the name_scope in checkpoint.')
 ##Input data folder
 tf.app.flags.DEFINE_string(
-    'input_data', '../VOCROOT/VOC2007/JPEGImages/',
+    'input_data', '../VOCROOT_reduced/VOC2007/JPEGImages/',
     'Specify the location of the input dataset to apply the trained network.')
 tf.app.flags.DEFINE_string(
     'output_data', './output/',
