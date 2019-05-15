@@ -47,7 +47,7 @@ tf.app.flags.DEFINE_string(
     'with CPU. If left unspecified, the data format will be chosen '
     'automatically based on whether TensorFlow was built for CPU or GPU.')
 tf.app.flags.DEFINE_float(
-    'select_threshold', 0.2, 'Class-specific confidence score threshold for selecting a box.')
+    'select_threshold', 0.5, 'Class-specific confidence score threshold for selecting a box.')
 tf.app.flags.DEFINE_float(
     'min_size', 0.03, 'The min size of bboxes to keep.')
 tf.app.flags.DEFINE_float(
