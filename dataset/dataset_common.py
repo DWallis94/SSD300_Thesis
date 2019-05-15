@@ -222,7 +222,7 @@ def slim_get_batch(num_classes, batch_size, split_name, file_pattern, num_reader
         isdifficult_mask =tf.cond(tf.count_nonzero(isdifficult, dtype=tf.int32) < tf.shape(isdifficult)[0],
                                 lambda : isdifficult < tf.ones_like(isdifficult),
                                 lambda : tf.one_hot(0, tf.shape(isdifficult)[0], on_value=True, off_value=False, dtype=tf.bool))
-
+        
         glabels_raw = tf.boolean_mask(glabels_raw, isdifficult_mask)
         gbboxes_raw = tf.boolean_mask(gbboxes_raw, isdifficult_mask)
 
