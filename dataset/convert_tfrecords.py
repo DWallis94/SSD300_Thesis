@@ -43,13 +43,13 @@ import dataset_common
        |    |->Annotations/
        |    |->...
 '''
-tf.app.flags.DEFINE_string('dataset_directory', '/media/rs/7A0EE8880EE83EAF/Detections/PASCAL/VOC',
+tf.app.flags.DEFINE_string('dataset_directory', '.',
                            'All datas directory')
 tf.app.flags.DEFINE_string('train_splits', 'VOC2007, VOC2012',
                            'Comma-separated list of the training data sub-directory')
 tf.app.flags.DEFINE_string('validation_splits', 'VOC2007TEST',
                            'Comma-separated list of the validation data sub-directory')
-tf.app.flags.DEFINE_string('output_directory', '/media/rs/7A0EE8880EE83EAF/Detections/SSD/dataset/tfrecords',
+tf.app.flags.DEFINE_string('output_directory', './tfrecords',
                            'Output data directory')
 tf.app.flags.DEFINE_integer('train_shards', 16,
                             'Number of shards in training TFRecord files.')
@@ -210,6 +210,12 @@ def _find_image_bounding_boxes(directory, cur_record):
     labels_text: List of labels' name for bounding box.
     difficult: List of ints indicate the difficulty of that bounding box.
     truncated: List of ints indicate the truncation of that bounding box.
+	
+  Notes:
+    directory is just the input dir
+	e.g. '.'
+	cur_record is a tuple containing the current record folder and current record image
+	e.g. ('VOC2012', '2012_002167.jpg')
   """
   anna_file = os.path.join(directory, cur_record[0], 'Annotations', cur_record[1].replace('jpg', 'xml'))
 
@@ -229,27 +235,29 @@ def _find_image_bounding_boxes(directory, cur_record):
   truncated = []
   for obj in root.findall('object'):
       label = obj.find('name').text
-      labels.append(int(dataset_common.VOC_LABELS[label][0]))
-      labels_text.append(label.encode('ascii'))
+      if label in dataset_common.VOC_LABELS_reduced:
+          
+          labels.append(int(dataset_common.VOC_LABELS_reduced[label][0]))
+          labels_text.append(label.encode('ascii'))
 
-      isdifficult = obj.find('difficult')
-      if isdifficult is not None:
-          difficult.append(int(isdifficult.text))
-      else:
-          difficult.append(0)
+          isdifficult = obj.find('difficult')
+          if isdifficult is not None:
+              difficult.append(int(isdifficult.text))
+          else:
+              difficult.append(0)
 
-      istruncated = obj.find('truncated')
-      if istruncated is not None:
-          truncated.append(int(istruncated.text))
-      else:
-          truncated.append(0)
+          istruncated = obj.find('truncated')
+          if istruncated is not None:
+              truncated.append(int(istruncated.text))
+          else:
+              truncated.append(0)
 
-      bbox = obj.find('bndbox')
-      bboxes.append((float(bbox.find('ymin').text) / shape[0],
-                     float(bbox.find('xmin').text) / shape[1],
-                     float(bbox.find('ymax').text) / shape[0],
-                     float(bbox.find('xmax').text) / shape[1]
-                     ))
+          bbox = obj.find('bndbox')
+          bboxes.append((float(bbox.find('ymin').text) / shape[0],
+                         float(bbox.find('xmin').text) / shape[1],
+                         float(bbox.find('ymax').text) / shape[0],
+                         float(bbox.find('xmax').text) / shape[1]
+                          ))
   return bboxes, labels, labels_text, difficult, truncated
 
 def _process_image_files_batch(coder, thread_index, ranges, name, directory, all_records, num_shards):
@@ -368,6 +376,11 @@ def _process_dataset(name, directory, all_splits, num_shards):
     images = tf.gfile.ListDirectory(jpeg_file_path)
     jpegs = [im_name for im_name in images if im_name.strip()[-3:]=='jpg']
     all_records.extend(list(zip([split] * len(jpegs), jpegs)))
+	
+    #with open('test.txt', 'w+') as f:
+    #    for i in all_records:
+    #        f.write(str(i) + '\n')
+    #    f.close()
 
   shuffled_index = list(range(len(all_records)))
   random.seed(RANDOM_SEED)

@@ -18,7 +18,8 @@ from __future__ import print_function
 
 import tensorflow as tf
 
-slim = tf.contrib.slim    
+slim = tf.contrib.slim
+    
 
 VOC_LABELS = {
     'none': (0, 'Background'),
