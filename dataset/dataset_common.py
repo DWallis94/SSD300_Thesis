@@ -48,6 +48,7 @@ VOC_LABELS = {
 VOC_LABELS_reduced = {
     'none': (0, 'Background'),
     'car': (1, 'Vehicle'),
+    'background' : (2, 'Background'),
 }
 
 COCO_LABELS = {

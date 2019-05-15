@@ -33,7 +33,7 @@ from utility import draw_toolbox
 
 # scaffold related configuration
 tf.app.flags.DEFINE_integer(
-    'num_classes', 2, 'Number of classes to use in the dataset.')
+    'num_classes', len(dataset_common.VOC_LABELS_reduced), 'Number of classes to use in the dataset.')
 # model related configuration
 tf.app.flags.DEFINE_integer(
     'train_image_size', 300,
@@ -65,7 +65,7 @@ tf.app.flags.DEFINE_string(
     'Model scope name used to replace the name_scope in checkpoint.')
 ##Input data folder
 tf.app.flags.DEFINE_string(
-    'input_data', '../VOCROOT_reduced/VOC2007/JPEGImages/',
+    'input_data', '../VOCROOT_reduced/VOC2012TEST/JPEGImages/',
     'Specify the location of the input dataset to apply the trained network.')
 tf.app.flags.DEFINE_string(
     'output_data', './output/',

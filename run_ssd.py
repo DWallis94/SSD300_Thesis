@@ -32,7 +32,7 @@ from utility import draw_toolbox
 
 # scaffold related configuration
 tf.app.flags.DEFINE_integer(
-    'num_classes', 2, 'Number of classes to use in the dataset.')
+    'num_classes', len(dataset_common.VOC_LABELS_reduced), 'Number of classes to use in the dataset.')
 # model related configuration
 tf.app.flags.DEFINE_integer(
     'train_image_size', 300,
