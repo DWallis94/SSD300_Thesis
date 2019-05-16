@@ -262,7 +262,7 @@ def _find_image_bounding_boxes(directory, cur_record):
                           ))
 						  
   if not relevant_lst:
-      labels.append(num_classes + 1)
+      labels.append(num_classes)
       labels_text.append('background'.encode('ascii'))
       difficult.append(0)
       truncated.append(0)
@@ -390,7 +390,7 @@ def _process_dataset(name, directory, all_splits, num_shards):
     jpeg_lst  = []
 
     for cls in dataset_common.VOC_LABELS_reduced:
-        if cls != "none":
+        if cls not in ['none', 'background']:
             if "test" in split.lower():
                 cls_im_lst = os.path.join(main_path, cls + '_test.txt')
             else:
