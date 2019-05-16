@@ -44,7 +44,7 @@ tf.app.flags.DEFINE_string(
     'with CPU. If left unspecified, the data format will be chosen '
     'automatically based on whether TensorFlow was built for CPU or GPU.')
 tf.app.flags.DEFINE_float(
-    'select_threshold', 0.2, 'Class-specific confidence score threshold for selecting a box.')
+    'select_threshold', 0.5, 'Class-specific confidence score threshold for selecting a box.')
 tf.app.flags.DEFINE_float(
     'min_size', 0.03, 'The min size of bboxes to keep.')
 tf.app.flags.DEFINE_float(
@@ -92,7 +92,7 @@ def select_bboxes(scores_pred, bboxes_pred, num_classes, select_threshold):
     selected_bboxes = {}
     selected_scores = {}
     with tf.name_scope('select_bboxes', [scores_pred, bboxes_pred]):
-        for class_ind in range(1, num_classes):
+        for class_ind in range(1, num_classes - 1):
             class_scores = scores_pred[:, class_ind]
 
             select_mask = class_scores > select_threshold
@@ -147,7 +147,7 @@ def parse_by_class(cls_pred, bboxes_pred, num_classes, select_threshold, min_siz
     with tf.name_scope('select_bboxes', [cls_pred, bboxes_pred]):
         scores_pred = tf.nn.softmax(cls_pred)
         selected_bboxes, selected_scores = select_bboxes(scores_pred, bboxes_pred, num_classes, select_threshold)
-        for class_ind in range(1, num_classes):
+        for class_ind in range(1, num_classes - 1):
             ymin, xmin, ymax, xmax = tf.unstack(selected_bboxes[class_ind], 4, axis=-1)
             #ymin, xmin, ymax, xmax = tf.squeeze(ymin), tf.squeeze(xmin), tf.squeeze(ymax), tf.squeeze(xmax)
             ymin, xmin, ymax, xmax = clip_bboxes(ymin, xmin, ymax, xmax, 'clip_bboxes_{}'.format(class_ind))
