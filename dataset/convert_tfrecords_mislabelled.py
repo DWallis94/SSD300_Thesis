@@ -233,14 +233,18 @@ def _find_image_bounding_boxes(directory, cur_record):
   labels_text = []
   difficult = []
   truncated = []
+  num_classes = len(dataset_common.VOC_LABELS_reduced)
   for obj in root.findall('object'):
       label = obj.find('name').text
       if label in dataset_common.VOC_LABELS_reduced:
-          labels.append(int(dataset_common.VOC_LABELS_reduced[label][0]))
-          labels_text.append(label.encode('ascii'))
+          label_id   = int(dataset_common.VOC_LABELS_reduced[label][0])
+          label_text = label.encode('ascii')
       else:
-          labels.append(0)
-          labels_text.append('none'.encode('ascii'))
+          label_id   = num_classes
+          label_text = 'background'.encode('ascii')
+
+      labels.append(label_id)
+      labels_text.append(label_text)
 
       isdifficult = obj.find('difficult')
       if isdifficult is not None:
@@ -260,7 +264,7 @@ def _find_image_bounding_boxes(directory, cur_record):
                      float(bbox.find('ymax').text) / shape[0],
                      float(bbox.find('xmax').text) / shape[1]
                      ))
-						  
+
   return bboxes, labels, labels_text, difficult, truncated
 
 def _process_image_files_batch(coder, thread_index, ranges, name, directory, all_records, num_shards):
@@ -376,8 +380,8 @@ def _process_dataset(name, directory, all_splits, num_shards):
   all_records = []
 
   for split in all_splits:
-    main_path   = os.path.join(directory, split, 'ImageSets/Main')
-    jpeg_lst       = []
+    main_path = os.path.join(directory, split, 'ImageSets\\Main')
+    jpeg_lst  = []
 
     for cls in dataset_common.VOC_LABELS_reduced:
         if cls not in ['none', 'background']:
@@ -389,24 +393,9 @@ def _process_dataset(name, directory, all_splits, num_shards):
                 for line in f:
                     jpeg_lst.append(line.split(" ")[0] + ".jpg")
                 f.close()
-
-    #del_lst = []
-    #for im in jpeg_lst:
-    #   anna_file = os.path.join(directory, split, 'Annotations', im.replace('jpg', 'xml'))
-    #   tree = xml_tree.parse(anna_file)
-    #   root = tree.getroot()
-    #   relevant_lst = []
-    #   for obj in root.findall('object'):
-    #       label = obj.find('name').text
-    #       if label in dataset_common.VOC_LABELS_reduced:
-    #           relevant_lst.append(label)
-    #   if not relevant_lst:
-    #       del_lst.append(im)
-    #for im in del_lst:
-    #    jpeg_lst.remove(im)
-
-    jpeg_file_path = os.path.join(directory, split, 'JPEGImages')
+    
     jpegs = [im_name for im_name in jpeg_lst if im_name.strip()[-3:]=='jpg']
+
     all_records.extend(list(zip([split] * len(jpegs), jpegs)))
 
   shuffled_index = list(range(len(all_records)))

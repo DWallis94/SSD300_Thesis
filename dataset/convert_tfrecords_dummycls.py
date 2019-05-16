@@ -234,6 +234,7 @@ def _find_image_bounding_boxes(directory, cur_record):
   difficult = []
   truncated = []
   relevant_lst = []
+  num_classes = len(dataset_common.VOC_LABELS_reduced)
   for obj in root.findall('object'):
       label = obj.find('name').text
       if label in dataset_common.VOC_LABELS_reduced:
@@ -261,8 +262,8 @@ def _find_image_bounding_boxes(directory, cur_record):
                           ))
 						  
   if not relevant_lst:
-      labels.append(0)
-      labels_text.append('none'.encode('ascii'))
+      labels.append(num_classes)
+      labels_text.append('background'.encode('ascii'))
       difficult.append(0)
       truncated.append(0)
       bboxes.append((0,
@@ -385,8 +386,8 @@ def _process_dataset(name, directory, all_splits, num_shards):
   all_records = []
 
   for split in all_splits:
-    main_path   = os.path.join(directory, split, 'ImageSets/Main')
-    jpeg_lst       = []
+    main_path = os.path.join(directory, split, 'ImageSets\\Main')
+    jpeg_lst  = []
 
     for cls in dataset_common.VOC_LABELS_reduced:
         if cls not in ['none', 'background']:
@@ -399,22 +400,6 @@ def _process_dataset(name, directory, all_splits, num_shards):
                     jpeg_lst.append(line.split(" ")[0] + ".jpg")
                 f.close()
 
-    #del_lst = []
-    #for im in jpeg_lst:
-    #   anna_file = os.path.join(directory, split, 'Annotations', im.replace('jpg', 'xml'))
-    #   tree = xml_tree.parse(anna_file)
-    #   root = tree.getroot()
-    #   relevant_lst = []
-    #   for obj in root.findall('object'):
-    #       label = obj.find('name').text
-    #       if label in dataset_common.VOC_LABELS_reduced:
-    #           relevant_lst.append(label)
-    #   if not relevant_lst:
-    #       del_lst.append(im)
-    #for im in del_lst:
-    #    jpeg_lst.remove(im)
-
-    jpeg_file_path = os.path.join(directory, split, 'JPEGImages')
     jpegs = [im_name for im_name in jpeg_lst if im_name.strip()[-3:]=='jpg']
     all_records.extend(list(zip([split] * len(jpegs), jpegs)))
 
