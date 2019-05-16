@@ -385,11 +385,11 @@ def _process_dataset(name, directory, all_splits, num_shards):
   all_records = []
 
   for split in all_splits:
-    main_path   = os.path.join(directory, split, 'ImageSets\\Main')
+    main_path   = os.path.join(directory, split, 'ImageSets/Main')
     jpeg_lst       = []
 
     for cls in dataset_common.VOC_LABELS_reduced:
-        if cls != "none":
+        if cls not in ['none', 'background']:
             if "test" in split.lower():
                 cls_im_lst = os.path.join(main_path, cls + '_test.txt')
             else:
