@@ -386,7 +386,7 @@ def _process_dataset(name, directory, all_splits, num_shards):
   all_records = []
 
   for split in all_splits:
-    main_path = os.path.join(directory, split, 'ImageSets\\Main')
+    main_path = os.path.join(directory, split, 'ImageSets/Main')
     jpeg_lst  = []
 
     for cls in dataset_common.VOC_LABELS_reduced:
