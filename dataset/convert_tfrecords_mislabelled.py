@@ -391,7 +391,8 @@ def _process_dataset(name, directory, all_splits, num_shards):
                 cls_im_lst = os.path.join(main_path, cls + '_trainval.txt')
             with open(cls_im_lst, 'r') as f:
                 for line in f:
-                    jpeg_lst.append(line.split(" ")[0] + ".jpg")
+                    if line.split(" ")[0] + ".jpg" not in jpeg_lst:
+                        jpeg_lst.append(line.split(" ")[0] + ".jpg")
                 f.close()
     
     jpegs = [im_name for im_name in jpeg_lst if im_name.strip()[-3:]=='jpg']
