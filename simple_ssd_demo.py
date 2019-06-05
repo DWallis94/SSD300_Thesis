@@ -64,6 +64,9 @@ tf.app.flags.DEFINE_string(
 tf.app.flags.DEFINE_boolean(
     'low_precision', False,
 	'Does the current trained model use low precision?')
+tf.app.flags.DEFINE_float(
+    'add_noise', None,
+    'Whether to add gaussian noise to the imageset prior to training.')
 
 FLAGS = tf.app.flags.FLAGS
 #CUDA_VISIBLE_DEVICES
@@ -155,7 +158,7 @@ def main(_):
         image_input = tf.placeholder(tf.uint8, shape=(None, None, 3))
         shape_input = tf.placeholder(tf.int32, shape=(2,))
 
-        features = ssd_preprocessing.preprocess_for_eval(image_input, out_shape, data_format=FLAGS.data_format, output_rgb=False)
+        features = ssd_preprocessing.preprocess_for_eval(image_input, out_shape, add_noise=FLAGS.add_noise, data_format=FLAGS.data_format, output_rgb=False)
         features = tf.expand_dims(features, axis=0)
 
         anchor_creator = anchor_manipulator.AnchorCreator(out_shape,

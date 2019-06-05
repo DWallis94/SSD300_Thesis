@@ -20,7 +20,8 @@ import os
 import sys
 
 import tensorflow as tf
-from scipy.misc import imread, imsave, imshow, imresize
+#from scipy.misc import imread, imsave, imshow, imresize
+from PIL import Image
 import numpy as np
 
 from net import ssd_net_high
@@ -79,6 +80,9 @@ tf.app.flags.DEFINE_boolean(
 tf.app.flags.DEFINE_string(
     'specify_gpu', None,
     'Which GPU(s) to use, in a string (e.g. `0,1,2`) If `None`, uses all available.')
+tf.app.flags.DEFINE_float(
+    'add_noise', None,
+    'Whether to add gaussian noise to the imageset prior to training.')
 
 FLAGS = tf.app.flags.FLAGS
 
@@ -184,11 +188,13 @@ def write_images_with_bboxes(image_input, all_labels, all_scores, all_bboxes, sh
             for i in filename_queue:
                 in_filename = in_file + "{}".format(i)
                 out_filename = out_file + "{}".format(i)
-                np_image = imread(in_filename)
+                np_image = np.array(Image.open(in_filename))
+                if FLAGS.add_noise:
+                    np_image = np.uint8(np_image + max(np.random.normal(0, FLAGS.add_noise), 0))
                 labels_, scores_, bboxes_ = sess.run([all_labels, all_scores, all_bboxes], feed_dict = {image_input : np_image, shape_input : np_image.shape[:-1]})
 
                 img_to_draw = draw_toolbox.bboxes_draw_on_img(np_image, labels_, scores_, bboxes_, thickness=2)
-                imsave(out_filename, img_to_draw)
+                Image.fromarray(img_to_draw).save(out_filename)
 
 def write_labels_to_file(image_input, all_labels, all_scores, all_bboxes, shape_input, in_file=FLAGS.input_data,out_file=FLAGS.output_data):
     saver = tf.train.Saver()
@@ -204,7 +210,7 @@ def write_labels_to_file(image_input, all_labels, all_scores, all_bboxes, shape_
             for i in filename_queue:
                 in_filename = in_file + "{}".format(i)
                 out_filename = out_file + "{}".format(i)
-                img = imread(in_filename)
+                img = Image.open(in_filename)
                 classes, scores, bboxes = sess.run([all_labels, all_scores, all_bboxes], feed_dict = {image_input : img, shape_input : img.shape[:-1]})
 
                 shape = img.shape
@@ -234,7 +240,7 @@ def main(_):
         image_input = tf.placeholder(tf.uint8, shape=(None, None, 3))
         shape_input = tf.placeholder(tf.int32, shape=(2,))
 
-        features = ssd_preprocessing.preprocess_for_eval(image_input, out_shape, data_format=FLAGS.data_format, output_rgb=False)
+        features = ssd_preprocessing.preprocess_for_eval(image_input, out_shape, add_noise=FLAGS.add_noise, data_format=FLAGS.data_format, output_rgb=False)
         features = tf.expand_dims(features, axis=0)
 
         anchor_creator = anchor_manipulator.AnchorCreator(out_shape,

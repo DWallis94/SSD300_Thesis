@@ -46,7 +46,7 @@ tf.app.flags.DEFINE_string(
     'data_dir', '../VOCROOT_reduced/tfrecords',
     'The directory where the dataset input data is stored.')
 tf.app.flags.DEFINE_integer(
-    'num_classes', len(dataset_common.VOC_LABELS_reduced), 'Number of classes to use in the dataset.')
+    'num_classes', len(dataset_common.VOC_LABELS), 'Number of classes to use in the dataset.')
 tf.app.flags.DEFINE_string(
     'model_dir', './logs/',
     'The directory where the model will be stored.')
@@ -138,6 +138,9 @@ tf.app.flags.DEFINE_boolean(
 tf.app.flags.DEFINE_boolean(
     'imgnet', False,
     'Whether to use the imgnet dataset on the server.')
+tf.app.flags.DEFINE_float(
+    'add_noise', None,
+    'Whether to add gaussian noise to the imageset prior to training.')
 
 FLAGS = tf.app.flags.FLAGS
 
@@ -185,7 +188,7 @@ def get_init_fn():
 # the problem is that they shouldn't be splited
 global_anchor_info = dict()
 
-def input_pipeline(dataset_pattern='train-*', is_training=True, batch_size=FLAGS.batch_size):
+def input_pipeline(dataset_pattern='train-*', add_noise=FLAGS.add_noise, is_training=True, batch_size=FLAGS.batch_size):
     def input_fn():
         out_shape = [FLAGS.train_image_size] * 2
         anchor_creator = anchor_manipulator.AnchorCreator(out_shape,
@@ -205,7 +208,7 @@ def input_pipeline(dataset_pattern='train-*', is_training=True, batch_size=FLAGS
                                                             ignore_threshold = FLAGS.neg_threshold,
                                                             prior_scaling=[0.1, 0.1, 0.2, 0.2])
 
-        image_preprocessing_fn = lambda image_, labels_, bboxes_ : ssd_preprocessing.preprocess_image(image_, labels_, bboxes_, out_shape, is_training=is_training, data_format=FLAGS.data_format, output_rgb=False)
+        image_preprocessing_fn = lambda image_, labels_, bboxes_ : ssd_preprocessing.preprocess_image(image_, labels_, bboxes_, out_shape, add_noise=add_noise, is_training=is_training, data_format=FLAGS.data_format, output_rgb=False)
         anchor_encoder_fn = lambda glabels_, gbboxes_: anchor_encoder_decoder.encode_all_anchors(glabels_, gbboxes_, all_anchors, all_num_anchors_depth, all_num_anchors_spatial)
 
         image, _, shape, loc_targets, cls_targets, match_scores = dataset_common.slim_get_batch(FLAGS.num_classes,
@@ -222,6 +225,7 @@ def input_pipeline(dataset_pattern='train-*', is_training=True, batch_size=FLAGS
         global_anchor_info = {'decode_fn': lambda pred : anchor_encoder_decoder.decode_all_anchors(pred, num_anchors_per_layer),
                             'num_anchors_per_layer': num_anchors_per_layer,
                             'all_num_anchors_depth': all_num_anchors_depth }
+        
 
         return image, {'shape': shape, 'loc_targets': loc_targets, 'cls_targets': cls_targets, 'match_scores': match_scores}
     return input_fn
