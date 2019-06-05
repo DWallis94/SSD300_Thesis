@@ -500,8 +500,13 @@ def preprocess_for_eval(image, out_shape, data_format='channels_first', scope='s
     if data_format == 'channels_first':
       image = tf.transpose(image, perm=(2, 0, 1))
     return image
+	
+def add_gaussian_noise(input_layer, std):
+    noise = tf.random_normal(shape = input_layer.get_shape(), mean = 0.0, stddev = std, dtype = tf.float32) 
+    return input_layer + tf.cast(noise, tf.uint8)
 
-def preprocess_image(image, labels, bboxes, out_shape, is_training=False, data_format='channels_first', output_rgb=True):
+
+def preprocess_image(image, labels, bboxes, out_shape, add_noise=False, is_training=False, data_format='channels_first', output_rgb=True):
   """Preprocesses the given image.
 
   Args:
@@ -515,6 +520,10 @@ def preprocess_image(image, labels, bboxes, out_shape, is_training=False, data_f
   Returns:
     A preprocessed image.
   """
+  
+  if add_noise:
+    image = add_gaussian_noise(image, 0.2)
+	
   if is_training:
     return preprocess_for_train(image, labels, bboxes, out_shape, data_format=data_format, output_rgb=output_rgb)
   else:
