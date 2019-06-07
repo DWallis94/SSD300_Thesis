@@ -83,6 +83,9 @@ tf.app.flags.DEFINE_string(
 tf.app.flags.DEFINE_float(
     'add_noise', None,
     'Whether to add gaussian noise to the imageset prior to training.')
+tf.app.flags.DEFINE_float(
+    'feature_scale', 1.0,
+    'Factor by which to scale the number of convolutional kernel feature layers.')
 
 FLAGS = tf.app.flags.FLAGS
 
@@ -262,11 +265,11 @@ def main(_):
         with tf.variable_scope(FLAGS.model_scope, default_name=None, values=[features], reuse=tf.AUTO_REUSE):
             if FLAGS.low_precision:
                 backbone = ssd_net_low.VGG16Backbone(FLAGS.data_format)
-                feature_layers = backbone.forward(features, training=False)
+                feature_layers = backbone.forward(features, feature_scale=FLAGS.feature_scale, training=False)
                 location_pred, cls_pred = ssd_net_low.multibox_head(feature_layers, FLAGS.num_classes, all_num_anchors_depth, data_format=FLAGS.data_format)
             else:
                 backbone = ssd_net_high.VGG16Backbone(FLAGS.data_format)
-                feature_layers = backbone.forward(features, training=False)
+                feature_layers = backbone.forward(features, feature_scale=FLAGS.feature_scale, training=False)
                 location_pred, cls_pred = ssd_net_high.multibox_head(feature_layers, FLAGS.num_classes, all_num_anchors_depth, data_format=FLAGS.data_format)
             if FLAGS.data_format == 'channels_first':
                 cls_pred = [tf.transpose(pred, [0, 2, 3, 1]) for pred in cls_pred]

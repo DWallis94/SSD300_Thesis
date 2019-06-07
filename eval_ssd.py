@@ -113,6 +113,9 @@ tf.app.flags.DEFINE_boolean(
 tf.app.flags.DEFINE_float(
     'add_noise', None,
     'Whether gaussian noise is added to the input images prior to evaluation.')
+tf.app.flags.DEFINE_float(
+    'feature_scale', 1.0,
+    'Factor by which to scale the number of convolutional kernel feature layers.')
 
 FLAGS = tf.app.flags.FLAGS
 
@@ -292,12 +295,12 @@ def ssd_model_fn(features, labels, mode, params):
     with tf.variable_scope(params['model_scope'], default_name=None, values=[features], reuse=tf.AUTO_REUSE):
         if FLAGS.low_precision:
             backbone = ssd_net_low.VGG16Backbone(params['data_format'])
-            feature_layers = backbone.forward(features, training=(mode == tf.estimator.ModeKeys.TRAIN))
+            feature_layers = backbone.forward(features, feature_scale=FLAGS.feature_scale, training=(mode == tf.estimator.ModeKeys.TRAIN))
 			
             location_pred, cls_pred = ssd_net_low.multibox_head(feature_layers, params['num_classes'], all_num_anchors_depth, data_format=params['data_format'])
         else:
             backbone = ssd_net_high.VGG16Backbone(params['data_format'])
-            feature_layers = backbone.forward(features, training=(mode == tf.estimator.ModeKeys.TRAIN))
+            feature_layers = backbone.forward(features, feature_scale=FLAGS.feature_scale, training=(mode == tf.estimator.ModeKeys.TRAIN))
      
             location_pred, cls_pred = ssd_net_high.multibox_head(feature_layers, params['num_classes'], all_num_anchors_depth, data_format=params['data_format'])
 
