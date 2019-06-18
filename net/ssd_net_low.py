@@ -22,6 +22,7 @@ import quantization as q
 _BATCH_NORM_DECAY = 0.9
 _BATCH_NORM_EPSILON = 1e-5
 _USE_FUSED_BN = True
+_DROPOUT_RATE = 0.5
 
 # vgg_16/conv2/conv2_1/biases
 # vgg_16/conv4/conv4_3/biases
@@ -194,9 +195,9 @@ class VGG16Backbone(object):
                 conv = tf.layers.dropout(conv, rate=_DROPOUT_RATE)
             tf.summary.histogram( "act_bn", conv )
             #conv = tf.nn.relu(conv)
-            #with tf.variable_scope("quantize_activations"):
-            #    conv = q.quantize_activations( conv, 8 )
-            #tf.summary.histogram( "act_bn_q", conv )
+            with tf.variable_scope("quantize_activations"):
+                conv = q.quantize_activations( conv, 8 )
+            tf.summary.histogram( "act_bn_q", conv )
             conv = tf.nn.relu(conv)
             tf.summary.histogram( "act_bn_q_r", conv )
             return conv

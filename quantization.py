@@ -26,15 +26,9 @@ def quantize_weights( w, k ):
     return stop_grad( w, quant )
 
 def quantize_activations( xr, k ):
-	clipped = tf.clip_by_value( xr, 0, 1)
-	quant = quantize( clipped, k )
-	with open('QA_debug.txt', 'a+') as f:
-		for i in tf.Session().run(xr):
-			f.write("xr: " + str(i) + "\n")
-		for i in tf.Session().run(quant):
-			f.write("quant: " + str(quant) + "\n")
-		f.close()
-	return stop_grad( clipped, quant )
+    clipped = tf.clip_by_value( xr, 0, 1)
+    quant = quantize( clipped, k )
+    return stop_grad( clipped, quant )
 
 
 def shaped_relu( x, a = 1.0 ):
