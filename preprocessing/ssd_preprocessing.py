@@ -507,7 +507,7 @@ def preprocess_for_eval(image, out_shape, add_noise=None, data_format='channels_
 
 def add_gaussian_noise(input_layer, std):
     noise = tf.random_normal(shape=tf.shape(input_layer), mean=0.0, stddev=std, dtype=tf.float32)
-    return input_layer + tf.cast(noise, tf.uint8)
+    return input_layer + tf.cast(noise * 255, tf.uint8)
 
 
 def preprocess_image(image, labels, bboxes, out_shape, add_noise=None, is_training=False, data_format='channels_first', output_rgb=True):

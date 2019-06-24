@@ -101,22 +101,22 @@ class VGG16Backbone(object):
         feature_layers = []
         # forward vgg layers
         with tf.variable_scope('conv1') as scope:
-            inputs = self.conv_block_low(inputs, int(64*feature_scale), 3, (1, 1, 1, 1), 'conv1_1')
-            inputs = self.conv_block_low(inputs, int(64*feature_scale), 3, (1, 1, 1, 1), 'conv1_2')
+            inputs = self.conv_block(inputs, 64, 3, (1, 1, 1, 1), 'conv1_1')
+            inputs = self.conv_block_low(inputs, 64, 3, (1, 1, 1, 1), 'conv1_2', feature_scale)
         inputs = self._pool1.apply(inputs)
         with tf.variable_scope('conv2') as scope:
-            inputs = self.conv_block_low(inputs, int(128*feature_scale), 3, (1, 1, 1, 1), 'conv2_1')
-            inputs = self.conv_block_low(inputs, int(128*feature_scale), 3, (1, 1, 1, 1), 'conv2_2')
+            inputs = self.conv_block_low(inputs, 128, 3, (1, 1, 1, 1), 'conv2_1', feature_scale)
+            inputs = self.conv_block_low(inputs, 128, 3, (1, 1, 1, 1), 'conv2_2', feature_scale)
         inputs = self._pool2.apply(inputs)
         with tf.variable_scope('conv3') as scope:
-            inputs = self.conv_block_low(inputs, int(256*feature_scale), 3, (1, 1, 1, 1), 'conv3_1')
-            inputs = self.conv_block_low(inputs, int(256*feature_scale), 3, (1, 1, 1, 1), 'conv3_2')
-            inputs = self.conv_block_low(inputs, int(256*feature_scale), 3, (1, 1, 1, 1), 'conv3_3')
+            inputs = self.conv_block_low(inputs, 256, 3, (1, 1, 1, 1), 'conv3_1', feature_scale)
+            inputs = self.conv_block_low(inputs, 256, 3, (1, 1, 1, 1), 'conv3_2', feature_scale)
+            inputs = self.conv_block_low(inputs, 256, 3, (1, 1, 1, 1), 'conv3_3', feature_scale)
         inputs = self._pool3.apply(inputs)
         with tf.variable_scope('conv4') as scope:
-            inputs = self.conv_block_low(inputs, int(512*feature_scale), 3, (1, 1, 1, 1), 'conv4_1')
-            inputs = self.conv_block_low(inputs, int(512*feature_scale), 3, (1, 1, 1, 1), 'conv4_2')
-            inputs = self.conv_block_low(inputs, int(512*feature_scale), 3, (1, 1, 1, 1), 'conv4_3')
+            inputs = self.conv_block_low(inputs, 512, 3, (1, 1, 1, 1), 'conv4_1', feature_scale)
+            inputs = self.conv_block_low(inputs, 512, 3, (1, 1, 1, 1), 'conv4_2', feature_scale)
+            inputs = self.conv_block_low(inputs, 512, 3, (1, 1, 1, 1), 'conv4_3', feature_scale)
         # conv4_3
         with tf.variable_scope('conv4_3_scale') as scope:
             weight_scale = tf.Variable([20.] * int(512*feature_scale), trainable=training, name='weights')
@@ -129,16 +129,16 @@ class VGG16Backbone(object):
                                 )
         inputs = self._pool4.apply(inputs)
         with tf.variable_scope('conv5') as scope:
-            inputs = self.conv_block_low(inputs, int(512*feature_scale), 3, (1, 1, 1, 1), 'conv5_1')
-            inputs = self.conv_block_low(inputs, int(512*feature_scale), 3, (1, 1, 1, 1), 'conv5_2')
-            inputs = self.conv_block_low(inputs, int(512*feature_scale), 3, (1, 1, 1, 1), 'conv5_3')
+            inputs = self.conv_block_low(inputs, 512, 3, (1, 1, 1, 1), 'conv5_1', feature_scale)
+            inputs = self.conv_block_low(inputs, 512, 3, (1, 1, 1, 1), 'conv5_2', feature_scale)
+            inputs = self.conv_block_low(inputs, 512, 3, (1, 1, 1, 1), 'conv5_3', feature_scale)
         inputs = self._pool5.apply(inputs)
         # forward fc layers
         dilation = [1, 6, 6, 6]
         dilation[self._bn_axis] = 1
-        inputs = self.conv_block_low(inputs, filters=int(1024*feature_scale), kernel_size=3, strides=[1,1,1,1], padding='SAME', dilations=dilation,
+        inputs = self.conv_block_low(inputs, filters=1024, feature_scale=feature_scale, kernel_size=3, strides=[1,1,1,1], padding='SAME', dilations=dilation,
                                 activation=tf.nn.relu, batch_norm=False, use_bias=True, name='fc6', reuse=None)
-        inputs = self.conv_block_low(inputs, filters=int(1024*feature_scale), kernel_size=1, strides=[1,1,1,1], padding='SAME',
+        inputs = self.conv_block_low(inputs, filters=1024, feature_scale=feature_scale, kernel_size=1, strides=[1,1,1,1], padding='SAME',
                                 activation=tf.nn.relu, batch_norm=False, use_bias=True, name='fc7', reuse=None)
         # fc7
         feature_layers.append(inputs)
@@ -148,32 +148,32 @@ class VGG16Backbone(object):
             with tf.variable_scope('conv8') as scope:
                 stride = [1, 2, 2, 2]
                 stride[self._bn_axis] = 1
-                inputs = self.conv_block_low(inputs=inputs, filters=int(256*feature_scale), kernel_size=1, strides=(1, 1, 1, 1), use_bias=True, name='conv8_1')
-                inputs = self.conv_block_low(inputs=inputs, filters=int(512*feature_scale), kernel_size=3, strides=stride, use_bias=True, name='conv8_2')
+                inputs = self.conv_block_low(inputs=inputs, filters=256, feature_scale=feature_scale, kernel_size=1, strides=(1, 1, 1, 1), use_bias=True, name='conv8_1')
+                inputs = self.conv_block_low(inputs=inputs, filters=512, feature_scale=feature_scale, kernel_size=3, strides=stride, use_bias=True, name='conv8_2')
             # conv8
             feature_layers.append(inputs)
             with tf.variable_scope('conv9') as scope:
                 stride = [1, 2, 2, 2]
                 stride[self._bn_axis] = 1
-                inputs = self.conv_block_low(inputs=inputs, filters=int(128*feature_scale), kernel_size=1, strides=(1, 1, 1, 1), use_bias=True, name='conv9_1')
-                inputs = self.conv_block_low(inputs=inputs, filters=int(256*feature_scale), kernel_size=3, strides=stride, use_bias=True, name='conv9_2')
+                inputs = self.conv_block_low(inputs=inputs, filters=128, feature_scale=feature_scale, kernel_size=1, strides=(1, 1, 1, 1), use_bias=True, name='conv9_1')
+                inputs = self.conv_block_low(inputs=inputs, filters=256, feature_scale=feature_scale, kernel_size=3, strides=stride, use_bias=True, name='conv9_2')
             # conv9
             feature_layers.append(inputs)
             with tf.variable_scope('conv10') as scope:
-                inputs = self.conv_block_low(inputs=inputs, filters=int(128*feature_scale), kernel_size=1, strides=(1, 1, 1, 1), use_bias=True, name='conv10_1', padding='VALID')
-                inputs = self.conv_block_low(inputs=inputs, filters=int(256*feature_scale), kernel_size=3, strides=(1, 1, 1, 1), use_bias=True, name='conv10_2', padding='VALID')
+                inputs = self.conv_block_low(inputs=inputs, filters=128, feature_scale=feature_scale, kernel_size=1, strides=(1, 1, 1, 1), use_bias=True, name='conv10_1', padding='VALID')
+                inputs = self.conv_block_low(inputs=inputs, filters=256, feature_scale=feature_scale, kernel_size=3, strides=(1, 1, 1, 1), use_bias=True, name='conv10_2', padding='VALID')
             # conv10
             feature_layers.append(inputs)
             with tf.variable_scope('conv11') as scope:
-                inputs = self.conv_block_low(inputs=inputs, filters=int(128*feature_scale), kernel_size=1, strides=(1, 1, 1, 1), use_bias=True, name='conv11_1', padding='VALID')
-                inputs = self.conv_block_low(inputs=inputs, filters=int(256*feature_scale), kernel_size=3, strides=(1, 1, 1, 1), use_bias=True, name='conv11_2', padding='VALID')
+                inputs = self.conv_block_low(inputs=inputs, filters=128, feature_scale=feature_scale, kernel_size=1, strides=(1, 1, 1, 1), use_bias=True, name='conv11_1', padding='VALID')
+                inputs = self.conv_block_low(inputs=inputs, filters=256, feature_scale=feature_scale, kernel_size=3, strides=(1, 1, 1, 1), use_bias=True, name='conv11_2', padding='VALID')
             # conv11
             feature_layers.append(inputs)
 
         return feature_layers
 
 ## A block which generates the low precision weights and convolves them with the input
-    def conv_block_low(self, inputs, filters, kernel_size, strides, name, padding='SAME', dilations=[1, 1, 1, 1],
+    def conv_block_low(self, inputs, filters, kernel_size, strides, name, feature_scale=1.0, padding='SAME', dilations=[1, 1, 1, 1],
                     activation=tf.nn.relu, batch_norm=True, use_bias=True, reuse=None):
         with tf.variable_scope(name):
             data_format = "NHWC" if self._data_format == 'channels_last' else "NCHW"

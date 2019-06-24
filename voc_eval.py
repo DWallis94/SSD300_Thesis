@@ -75,7 +75,7 @@ def do_python_eval(use_07=True):
         if not os.path.isdir(output_path):
             os.mkdir(output_path)
         for cls_name, cls_pair in dataset_common.VOC_LABELS_reduced.items():
-            if cls_name in ['none']:
+            if cls_name in ['none', 'background']:
                 continue
             cls_id = cls_pair[0]
             filename = os.path.join(pred_path, pred_file.format(cls_id))

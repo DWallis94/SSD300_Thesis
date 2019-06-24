@@ -46,7 +46,7 @@ tf.app.flags.DEFINE_string(
     'data_dir', '../VOCROOT_reduced/tfrecords',
     'The directory where the dataset input data is stored.')
 tf.app.flags.DEFINE_integer(
-    'num_classes', len(dataset_common.VOC_LABELS), 'Number of classes to use in the dataset.')
+    'num_classes', len(dataset_common.VOC_LABELS_reduced), 'Number of classes to use in the dataset.')
 tf.app.flags.DEFINE_string(
     'model_dir', './logs/',
     'The directory where the model will be stored.')
