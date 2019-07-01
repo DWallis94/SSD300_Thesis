@@ -43,18 +43,19 @@ VOC_LABELS = {
     'sofa': (18, 'Indoor'),
     'train': (19, 'Vehicle'),
     'tvmonitor': (20, 'Indoor'),
+	'background': (21, 'Background'),
 }
 
 VOC_LABELS_reduced = {
     'none': (0, 'Background'),
-    'car': (1, 'Vehicle'),
-    'aeroplane': (2, 'Vehicle'),
-    'bicycle': (3, 'Vehicle'),
-    'boat': (4, 'Vehicle'),
-    'bus': (5, 'Vehicle'),
-    'motorbike': (6, 'Vehicle'),
-    'train': (7, 'Vehicle'),
-	'background': (8, 'Background'),
+    'bird': (1, 'Animal'),
+    'cat': (2, 'Animal'),
+    'cow': (3, 'Animal'),
+    'dog': (4, 'Animal'),
+    'horse': (5, 'Animal'),
+    'person': (6, 'Person'),
+    'sheep': (7, 'Animal'),
+    'background': (8, 'Background'),
 }
 
 COCO_LABELS = {
