@@ -149,7 +149,7 @@ FLAGS = tf.app.flags.FLAGS
 
 if FLAGS.imgnet:
     FLAGS.data_dir = '/opt/datasets/imgnet-data'
-    
+
 #CUDA_VISIBLE_DEVICES
 def validate_batch_size_for_multi_gpu(batch_size):
     """For multi-gpu, batch-size must be a multiple of the number of
@@ -228,7 +228,7 @@ def input_pipeline(dataset_pattern='train-*', add_noise=FLAGS.add_noise, is_trai
         global_anchor_info = {'decode_fn': lambda pred : anchor_encoder_decoder.decode_all_anchors(pred, num_anchors_per_layer),
                             'num_anchors_per_layer': num_anchors_per_layer,
                             'all_num_anchors_depth': all_num_anchors_depth }
-        
+
 
         return image, {'shape': shape, 'loc_targets': loc_targets, 'cls_targets': cls_targets, 'match_scores': match_scores}
     return input_fn
@@ -239,7 +239,7 @@ def modified_smooth_l1(bbox_pred, bbox_targets, bbox_inside_weights=1., bbox_out
         SmoothL1(x) = 0.5 * (sigma * x)^2,    if |x| < 1 / sigma^2
                       |x| - 0.5 / sigma^2,    otherwise
     """
-    with tf.name_scope('smooth_l1', [bbox_pred, bbox_targets]):
+    with tf.name_scope('smooth_l1', None, [bbox_pred, bbox_targets]):
         sigma2 = sigma * sigma
 
         inside_mul = tf.multiply(bbox_inside_weights, tf.subtract(bbox_pred, bbox_targets))
@@ -296,14 +296,12 @@ def ssd_model_fn(features, labels, mode, params):
     #print(all_num_anchors_depth)
     with tf.variable_scope(params['model_scope'], default_name=None, values=[features], reuse=tf.AUTO_REUSE):
         if FLAGS.low_precision:
-            backbone = ssd_net_low.VGG16Backbone(params['data_format'])
-            feature_layers = backbone.forward(features, feature_scale=FLAGS.feature_scale, training=(mode == tf.estimator.ModeKeys.TRAIN))
-            #print(feature_layers)
+            backbone = ssd_net_low.VGG16Backbone(feature_scale=FLAGS.feature_scale, training=(mode == tf.estimator.ModeKeys.TRAIN), data_format=params['data_format'])
+            feature_layers = backbone.forward()
             location_pred, cls_pred = ssd_net_low.multibox_head(feature_layers, params['num_classes'], all_num_anchors_depth, data_format=params['data_format'])
         else:
-            backbone = ssd_net_high.VGG16Backbone(params['data_format'])
-            feature_layers = backbone.forward(features, feature_scale=FLAGS.feature_scale, training=(mode == tf.estimator.ModeKeys.TRAIN))
-     
+            backbone = ssd_net_high.VGG16Backbone(feature_scale=FLAGS.feature_scale, training=(mode == tf.estimator.ModeKeys.TRAIN), data_format=params['data_format'])
+            feature_layers = backbone.forward()
             location_pred, cls_pred = ssd_net_high.multibox_head(feature_layers, params['num_classes'], all_num_anchors_depth, data_format=params['data_format'])
 
         if params['data_format'] == 'channels_first':
@@ -313,13 +311,13 @@ def ssd_model_fn(features, labels, mode, params):
         #tf.summary.histogram('feature_layers',feature_layers)
         cls_pred = [tf.reshape(pred, [tf.shape(features)[0], -1, params['num_classes']]) for pred in cls_pred]
         location_pred = [tf.reshape(pred, [tf.shape(features)[0], -1, 4]) for pred in location_pred]
-        
+
         cls_pred = tf.concat(cls_pred, axis=1)
         location_pred = tf.concat(location_pred, axis=1)
-        
+
         cls_pred = tf.reshape(cls_pred, [-1, params['num_classes']])
         location_pred = tf.reshape(location_pred, [-1, 4])
-        
+
     with tf.device('/cpu:0'):
         with tf.control_dependencies([cls_pred, location_pred]):
             with tf.name_scope('post_forward'):
@@ -367,7 +365,7 @@ def ssd_model_fn(features, labels, mode, params):
 
                 flaten_cls_targets = tf.boolean_mask(tf.clip_by_value(flaten_cls_targets, 0, params['num_classes'] - 1), final_mask)
                 flaten_loc_targets = tf.stop_gradient(tf.boolean_mask(flaten_loc_targets, positive_mask))
-                
+
                 predictions = {
                             'classes': tf.argmax(cls_pred, axis=-1),
                             'probabilities': tf.reduce_max(tf.nn.softmax(cls_pred, name='softmax_tensor'), axis=-1),
