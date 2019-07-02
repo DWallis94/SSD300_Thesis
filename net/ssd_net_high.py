@@ -54,7 +54,48 @@ _DROPOUT_RATE = 0.5
 # vgg_16/conv3/conv3_3/biases
 # vgg_16/conv1/conv1_2/weights
 
-class ReLuLayer(tf.layers.Layer):
+class L2Normalization(tf.keras.layers.Layer):
+    '''
+    Performs L2 normalization on the input tensor with a learnable scaling parameter
+    as described in the paper "Parsenet: Looking Wider to See Better" (see references)
+    and as used in the original SSD model.
+    Arguments:
+        gamma_init (int): The initial scaling parameter. Defaults to 20 following the
+            SSD paper.
+    Input shape:
+        4D tensor of shape `(batch, channels, height, width)` if `dim_ordering = 'th'`
+        or `(batch, height, width, channels)` if `dim_ordering = 'tf'`.
+    Returns:
+        The scaled tensor. Same shape as the input tensor.
+    References:
+        http://cs.unc.edu/~wliu/papers/parsenet.pdf
+    '''
+    '''
+    def l2_normalize(self, x, name):
+        with tf.name_scope(name, "l2_normalize", [x]) as name:
+            axis = -1 if self._data_format == 'channels_last' else 1
+            square_sum = tf.reduce_sum(tf.square(x), axis, keep_dims=True)
+            x_inv_norm = tf.rsqrt(tf.maximum(square_sum, 1e-10))
+            return tf.multiply(x, x_inv_norm, name=name)
+    '''
+
+    def __init__(self, name, data_format, **kwargs):
+        self._data_format = data_format
+        self._name = name
+        self._axis = -1 if self._data_format == 'channels_last' else 1
+        super(L2Normalization, self).__init__(**kwargs)
+
+    def build(self, input_shape):
+        self._L2Norm = lambda x : tf.multiply(x, tf.rsqrt(tf.maximum(tf.reduce_sum(tf.square(x), self._axis, keep_dims=True), 1e-10)), name=self._name)
+        super(L2Normalization, self).build(input_shape)
+
+    def call(self, inputs. mask=None):
+        return self._L2Norm(inputs)
+
+    def compute_output_shape(self, input_shape):
+        return tf.TensorShape(input_shape)
+
+class ReLuLayer(tf.keras.layers.Layer):
     def __init__(self, name, **kwargs):
         super(ReLuLayer, self).__init__(name=name, trainable=trainable, **kwargs)
         self._name = name
@@ -74,7 +115,7 @@ def forward_module(m, inputs, training=False):
     return m.apply(inputs)
 
 class VGG16Backbone(object):
-    def __init__(self, data_format='channels_first'):
+    def __init__(self, feature_scale=1.0, training=False, data_format='channels_first'):
         super(VGG16Backbone, self).__init__()
         self._data_format = data_format
         self._bn_axis = -1 if data_format == 'channels_last' else 1
@@ -82,19 +123,71 @@ class VGG16Backbone(object):
         self._conv_initializer = tf.glorot_uniform_initializer
         self._conv_bn_initializer = tf.glorot_uniform_initializer#lambda : tf.truncated_normal_initializer(mean=0.0, stddev=0.005)
         # VGG layers
-        self._pool1 = tf.layers.MaxPooling2D(2, 2, padding='same', data_format=self._data_format, name='pool1')
-        self._pool2 = tf.layers.MaxPooling2D(2, 2, padding='same', data_format=self._data_format, name='pool2')
-        self._pool3 = tf.layers.MaxPooling2D(2, 2, padding='same', data_format=self._data_format, name='pool3')
-        self._pool4 = tf.layers.MaxPooling2D(2, 2, padding='same', data_format=self._data_format, name='pool4')
-        self._pool5 = tf.layers.MaxPooling2D(3, 1, padding='same', data_format=self._data_format, name='pool5')
-        
-    def l2_normalize(self, x, name):
-        with tf.name_scope(name, "l2_normalize", [x]) as name:
-            axis = -1 if self._data_format == 'channels_last' else 1
-            square_sum = tf.reduce_sum(tf.square(x), axis, keep_dims=True)
-            x_inv_norm = tf.rsqrt(tf.maximum(square_sum, 1e-10))
-            return tf.multiply(x, x_inv_norm, name=name)
+        self._pool1 = tf.keras.layers.MaxPooling2D(2, 2, padding='same', data_format=self._data_format)
+        self._pool5 = tf.keras.layers.MaxPooling2D(3, 1, padding='same', data_format=self._data_format)
 
+        self._dilation6 = [1, 6, 6, 6]
+        self._dilation6[self._bn_axis] = 1
+
+        self._stride8 = [1, 2, 2, 2]
+        self._stride8[self._bn_axis] = 1
+
+        self._stride9 = [1, 2, 2, 2]
+        self._stride9[self._bn_axis] = 1
+
+        self._weight_scale = tf.Variable([20.] * int(512*feature_scale), trainable=training, name='weights')
+        if self._data_format == 'channels_last':
+            self._weight_scale = tf.reshape(self._weight_scale, [1, 1, 1, -1], name='reshape')
+        else:
+            self._weight_scale = tf.reshape(self._weight_scale, [1, -1, 1, 1], name='reshape')
+
+        self._model = tf.keras.Sequential([
+            self.conv_block(64, 3, (1, 1, 1, 1), 'conv1_1', feature_scale)
+            self.conv_block(64, 3, (1, 1, 1, 1), 'conv1_2', feature_scale)
+            self._pool1
+            self.conv_block(128, 3, (1, 1, 1, 1), 'conv2_1', feature_scale)
+            self.conv_block(128, 3, (1, 1, 1, 1), 'conv2_2', feature_scale)
+            self._pool1
+            self.conv_block(256, 3, (1, 1, 1, 1), 'conv3_1', feature_scale)
+            self.conv_block(256, 3, (1, 1, 1, 1), 'conv3_2', feature_scale)
+            self.conv_block(256, 3, (1, 1, 1, 1), 'conv3_3', feature_scale)
+            self._pool1
+            self.conv_block(512, 3, (1, 1, 1, 1), 'conv4_1', feature_scale)
+            self.conv_block(512, 3, (1, 1, 1, 1), 'conv4_2', feature_scale)
+            self.conv_block(512, 3, (1, 1, 1, 1), 'conv4_3', feature_scale)
+            # conv4_3
+            tf.multiply(self._weight_scale, L2Normalization(name='norm', data_format=self._data_format))
+            self._pool1
+            self.conv_block(512, 3, (1, 1, 1, 1), 'conv5_1', feature_scale)
+            self.conv_block(512, 3, (1, 1, 1, 1), 'conv5_2', feature_scale)
+            self.conv_block(512, 3, (1, 1, 1, 1), 'conv5_3', feature_scale)
+            self._pool5
+            # forward fc layers
+
+            self.conv_block(filters=1024, feature_scale=feature_scale, kernel_size=3, strides=[1,1,1,1], padding='SAME', dilations=self._dilation6,
+                                    activation=tf.nn.relu, batch_norm=False, use_bias=True, name='fc6', reuse=None)
+            self.conv_block(filters=1024, feature_scale=feature_scale, kernel_size=1, strides=[1,1,1,1], padding='SAME',
+                                    activation=tf.nn.relu, batch_norm=False, use_bias=True, name='fc7', reuse=None)
+
+            # forward ssd layers
+            self.conv_block(filters=256, feature_scale=feature_scale, kernel_size=1, strides=(1, 1, 1, 1), use_bias=True, name='conv8_1')
+            self.conv_block(filters=512, feature_scale=feature_scale, kernel_size=3, strides=self._stride8, use_bias=True, name='conv8_2')
+            # conv8
+            self.conv_block(filters=128, feature_scale=feature_scale, kernel_size=1, strides=(1, 1, 1, 1), use_bias=True, name='conv9_1')
+            self.conv_block(filters=256, feature_scale=feature_scale, kernel_size=3, strides=self._stride9, use_bias=True, name='conv9_2')
+            # conv9
+            self.conv_block(filters=128, feature_scale=feature_scale, kernel_size=1, strides=(1, 1, 1, 1), use_bias=True, name='conv10_1', padding='VALID')
+            self.conv_block(filters=256, feature_scale=feature_scale, kernel_size=3, strides=(1, 1, 1, 1), use_bias=True, name='conv10_2', padding='VALID')
+            # conv10
+            self.conv_block(filters=128, feature_scale=feature_scale, kernel_size=1, strides=(1, 1, 1, 1), use_bias=True, name='conv11_1', padding='VALID')
+            self.conv_block(filters=256, feature_scale=feature_scale, kernel_size=3, strides=(1, 1, 1, 1), use_bias=True, name='conv11_2', padding='VALID')
+            # conv11
+        ])
+
+    def forward(self):
+        return self._model
+
+    '''
     def forward(self, inputs, feature_scale=1.0, training=False):
         # inputs should in BGR
         feature_layers = []
@@ -141,7 +234,7 @@ class VGG16Backbone(object):
                                 activation=tf.nn.relu, batch_norm=False, use_bias=True, name='fc7', reuse=None)
         # fc7
         feature_layers.append(inputs)
-        
+
         # forward ssd layers
         with tf.variable_scope('additional_layers') as scope:
             with tf.variable_scope('conv8') as scope:
@@ -170,7 +263,31 @@ class VGG16Backbone(object):
             feature_layers.append(inputs)
 
         return feature_layers
+        '''
 
+    def conv_block(self, filters, kernel_size, strides, name, feature_scale=1.0, padding='SAME', dilations=[1, 1, 1, 1],
+                    activation=tf.nn.relu, batch_norm=True, use_bias=True, reuse=None):
+        with tf.variable_scope(name):
+            data_format = "NHWC" if self._data_format == 'channels_last' else "NCHW"
+            filter_shape = lambda x : [ kernel_size, kernel_size, x.shape[self._bn_axis], filters ]
+            conv_filter = tf.Variable( 'kernel', filter_shape )
+            tf.summary.histogram( "weights", conv_filter )
+            bias = tf.get_variable('bias', filters)
+            conv = lambda x : tf.nn.conv2d(input=x,filter=conv_filter,strides=strides,padding=padding,use_cudnn_on_gpu=True,
+                                data_format=data_format,dilations=dilations,name=name)
+            tf.summary.histogram( "act", conv )
+            conv = tf.nn.bias_add(conv, bias, data_format=data_format)
+            if batch_norm:
+                conv = tf.layers.batch_normalization(conv,axis=self._bn_axis, momentum=_BATCH_NORM_DECAY, epsilon=_BATCH_NORM_EPSILON, fused=_USE_FUSED_BN,
+                        reuse=None)
+            else:
+                conv = tf.layers.dropout(conv, rate=_DROPOUT_RATE)
+            tf.summary.histogram( "act_bn", conv )
+            conv = tf.nn.relu(conv)
+            tf.summary.histogram( "act_bn_r", conv )
+            return conv
+
+    '''
     def conv_block(self, inputs, filters, kernel_size, strides, name, feature_scale=1.0, padding='SAME', dilations=[1, 1, 1, 1],
                     activation=tf.nn.relu, batch_norm=True, use_bias=True, reuse=None):
         with tf.variable_scope(name):
@@ -197,6 +314,7 @@ class VGG16Backbone(object):
             conv = tf.nn.relu(conv)
             tf.summary.histogram( "act_bn_r", conv )
             return conv
+    '''
 
     def ssd_conv_block(self, filters, strides, name, padding='same', reuse=None):
         with tf.variable_scope(name):
@@ -267,5 +385,3 @@ def multibox_head(feature_layers, num_classes, num_anchors_depth_per_layer, data
                         bias_initializer=tf.zeros_initializer()))
 
         return loc_preds, cls_preds
-
-
