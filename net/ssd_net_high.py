@@ -89,7 +89,7 @@ class L2Normalization(tf.keras.layers.Layer):
         self._L2Norm = lambda x : tf.multiply(x, tf.rsqrt(tf.maximum(tf.reduce_sum(tf.square(x), self._axis, keep_dims=True), 1e-10)), name=self._name)
         super(L2Normalization, self).build(input_shape)
 
-    def call(self, inputs. mask=None):
+    def call(self, inputs, mask=None):
         return self._L2Norm(inputs)
 
     def compute_output_shape(self, input_shape):
@@ -142,44 +142,44 @@ class VGG16Backbone(object):
             self._weight_scale = tf.reshape(self._weight_scale, [1, -1, 1, 1], name='reshape')
 
         self._model = tf.keras.Sequential([
-            self.conv_block(64, 3, (1, 1, 1, 1), 'conv1_1', feature_scale)
-            self.conv_block(64, 3, (1, 1, 1, 1), 'conv1_2', feature_scale)
-            self._pool1
-            self.conv_block(128, 3, (1, 1, 1, 1), 'conv2_1', feature_scale)
-            self.conv_block(128, 3, (1, 1, 1, 1), 'conv2_2', feature_scale)
-            self._pool1
-            self.conv_block(256, 3, (1, 1, 1, 1), 'conv3_1', feature_scale)
-            self.conv_block(256, 3, (1, 1, 1, 1), 'conv3_2', feature_scale)
-            self.conv_block(256, 3, (1, 1, 1, 1), 'conv3_3', feature_scale)
-            self._pool1
-            self.conv_block(512, 3, (1, 1, 1, 1), 'conv4_1', feature_scale)
-            self.conv_block(512, 3, (1, 1, 1, 1), 'conv4_2', feature_scale)
-            self.conv_block(512, 3, (1, 1, 1, 1), 'conv4_3', feature_scale)
+            self.conv_block(64, 3, (1, 1, 1, 1), 'conv1_1', feature_scale),
+            self.conv_block(64, 3, (1, 1, 1, 1), 'conv1_2', feature_scale),
+            self._pool1,
+            self.conv_block(128, 3, (1, 1, 1, 1), 'conv2_1', feature_scale),
+            self.conv_block(128, 3, (1, 1, 1, 1), 'conv2_2', feature_scale),
+            self._pool1,
+            self.conv_block(256, 3, (1, 1, 1, 1), 'conv3_1', feature_scale),
+            self.conv_block(256, 3, (1, 1, 1, 1), 'conv3_2', feature_scale),
+            self.conv_block(256, 3, (1, 1, 1, 1), 'conv3_3', feature_scale),
+            self._pool1,
+            self.conv_block(512, 3, (1, 1, 1, 1), 'conv4_1', feature_scale),
+            self.conv_block(512, 3, (1, 1, 1, 1), 'conv4_2', feature_scale),
+            self.conv_block(512, 3, (1, 1, 1, 1), 'conv4_3', feature_scale),
             # conv4_3
-            tf.multiply(self._weight_scale, L2Normalization(name='norm', data_format=self._data_format))
-            self._pool1
-            self.conv_block(512, 3, (1, 1, 1, 1), 'conv5_1', feature_scale)
-            self.conv_block(512, 3, (1, 1, 1, 1), 'conv5_2', feature_scale)
-            self.conv_block(512, 3, (1, 1, 1, 1), 'conv5_3', feature_scale)
-            self._pool5
+            tf.multiply(self._weight_scale, L2Normalization(name='norm', data_format=self._data_format)),
+            self._pool1,
+            self.conv_block(512, 3, (1, 1, 1, 1), 'conv5_1', feature_scale),
+            self.conv_block(512, 3, (1, 1, 1, 1), 'conv5_2', feature_scale),
+            self.conv_block(512, 3, (1, 1, 1, 1), 'conv5_3', feature_scale),
+            self._pool5,
             # forward fc layers
 
             self.conv_block(filters=1024, feature_scale=feature_scale, kernel_size=3, strides=[1,1,1,1], padding='SAME', dilations=self._dilation6,
-                                    activation=tf.nn.relu, batch_norm=False, use_bias=True, name='fc6', reuse=None)
+                                    activation=tf.nn.relu, batch_norm=False, use_bias=True, name='fc6', reuse=None),
             self.conv_block(filters=1024, feature_scale=feature_scale, kernel_size=1, strides=[1,1,1,1], padding='SAME',
-                                    activation=tf.nn.relu, batch_norm=False, use_bias=True, name='fc7', reuse=None)
+                                    activation=tf.nn.relu, batch_norm=False, use_bias=True, name='fc7', reuse=None),
 
             # forward ssd layers
-            self.conv_block(filters=256, feature_scale=feature_scale, kernel_size=1, strides=(1, 1, 1, 1), use_bias=True, name='conv8_1')
-            self.conv_block(filters=512, feature_scale=feature_scale, kernel_size=3, strides=self._stride8, use_bias=True, name='conv8_2')
+            self.conv_block(filters=256, feature_scale=feature_scale, kernel_size=1, strides=(1, 1, 1, 1), use_bias=True, name='conv8_1'),
+            self.conv_block(filters=512, feature_scale=feature_scale, kernel_size=3, strides=self._stride8, use_bias=True, name='conv8_2'),
             # conv8
-            self.conv_block(filters=128, feature_scale=feature_scale, kernel_size=1, strides=(1, 1, 1, 1), use_bias=True, name='conv9_1')
-            self.conv_block(filters=256, feature_scale=feature_scale, kernel_size=3, strides=self._stride9, use_bias=True, name='conv9_2')
+            self.conv_block(filters=128, feature_scale=feature_scale, kernel_size=1, strides=(1, 1, 1, 1), use_bias=True, name='conv9_1'),
+            self.conv_block(filters=256, feature_scale=feature_scale, kernel_size=3, strides=self._stride9, use_bias=True, name='conv9_2'),
             # conv9
-            self.conv_block(filters=128, feature_scale=feature_scale, kernel_size=1, strides=(1, 1, 1, 1), use_bias=True, name='conv10_1', padding='VALID')
-            self.conv_block(filters=256, feature_scale=feature_scale, kernel_size=3, strides=(1, 1, 1, 1), use_bias=True, name='conv10_2', padding='VALID')
+            self.conv_block(filters=128, feature_scale=feature_scale, kernel_size=1, strides=(1, 1, 1, 1), use_bias=True, name='conv10_1', padding='VALID'),
+            self.conv_block(filters=256, feature_scale=feature_scale, kernel_size=3, strides=(1, 1, 1, 1), use_bias=True, name='conv10_2', padding='VALID'),
             # conv10
-            self.conv_block(filters=128, feature_scale=feature_scale, kernel_size=1, strides=(1, 1, 1, 1), use_bias=True, name='conv11_1', padding='VALID')
+            self.conv_block(filters=128, feature_scale=feature_scale, kernel_size=1, strides=(1, 1, 1, 1), use_bias=True, name='conv11_1', padding='VALID'),
             self.conv_block(filters=256, feature_scale=feature_scale, kernel_size=3, strides=(1, 1, 1, 1), use_bias=True, name='conv11_2', padding='VALID')
             # conv11
         ])
@@ -269,12 +269,13 @@ class VGG16Backbone(object):
                     activation=tf.nn.relu, batch_norm=True, use_bias=True, reuse=None):
         with tf.variable_scope(name):
             data_format = "NHWC" if self._data_format == 'channels_last' else "NCHW"
-            filter_shape = lambda x : [ kernel_size, kernel_size, x.shape[self._bn_axis], filters ]
-            conv_filter = tf.Variable( 'kernel', filter_shape )
-            tf.summary.histogram( "weights", conv_filter )
             bias = tf.get_variable('bias', filters)
-            conv = lambda x : tf.nn.conv2d(input=x,filter=conv_filter,strides=strides,padding=padding,use_cudnn_on_gpu=True,
-                                data_format=data_format,dilations=dilations,name=name)
+            lambda x :
+                filter_shape = [ kernel_size, kernel_size, x.shape[self._bn_axis], filters ]
+                conv_filter = tf.Variable( 'kernel', filter_shape )
+                tf.summary.histogram( "weights", conv_filter )
+                conv = tf.nn.conv2d(input=x,filter=conv_filter,strides=strides,padding=padding,use_cudnn_on_gpu=True,
+                                    data_format=data_format,dilations=dilations,name=name)
             tf.summary.histogram( "act", conv )
             conv = tf.nn.bias_add(conv, bias, data_format=data_format)
             if batch_norm:
