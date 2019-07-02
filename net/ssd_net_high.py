@@ -56,9 +56,12 @@ _DROPOUT_RATE = 0.5
 
 class Conv2D_layer(tf.keras.layers.Layer):
 
-    def __init__(self, output_dim, filter, strides, padding, use_cudnn_on_gpu,
+    def __init__(self, output_dim, kernel_size, axis, filters, filter, strides, padding, use_cudnn_on_gpu,
                         data_format, dilations, name, **kwargs):
         self.output_dim = output_dim
+        self._kernel_size = kernel_size
+        self._axis = axis
+        self._filters = filters
         self._filter = filter
         self._strides = strides
         self._padding = padding
@@ -68,9 +71,16 @@ class Conv2D_layer(tf.keras.layers.Layer):
         self._name = name
         super(Conv2D_layer, self).__init__(**kwargs)
 
-    def build(self, input_shape):
-        self._Conv = lambda x : tf.nn.conv2d(input=x, filter=self._filter, strides=self._strides, padding=self._padding, use_cudnn_on_gpu=self._use_cudnn_on_gpu,
+    def lambda_conv(x):
+        filter_shape = [ self._kernel_size, self._kernel_size, x.shape[self._axis], self._filters ]
+        conv_filter = tf.get_variable( 'kernel', filter_shape )
+        tf.summary.histogram( "weights", conv_filter )
+        conv = tf.nn.conv2d(input=x, filter=self._filter, strides=self._strides, padding=self._padding, use_cudnn_on_gpu=self._use_cudnn_on_gpu,
                             data_format=self._data_format, dilations=self._dilations, name=self._name)
+        return conv
+
+    def build(self, input_shape):
+        self._Conv = tf.keras.layers.Lambda(self.lambda_conv)
         super(Conv2D_layer, self).build(input_shape)
 
     def call(self, inputs, mask=None):
@@ -322,10 +332,7 @@ class VGG16Backbone(object):
             conv_ops = []
             data_format = "NHWC" if self._data_format == 'channels_last' else "NCHW"
             bias = tf.get_variable('bias', filters)
-            filter_shape = [ kernel_size, kernel_size, x.shape[self._bn_axis], filters ]
-            conv_filter = tf.get_variable( 'kernel', filter_shape )
-            tf.summary.histogram( "weights", conv_filter )
-            conv_ops.append(Conv2D_layer(filter=conv_filter,strides=strides,padding=padding,use_cudnn_on_gpu=True,
+            conv_ops.append(Conv2D_layer(kernel_shape=kernel_size, axis=self._bn_axis, filters=filters, filter=conv_filter,strides=strides,padding=padding,use_cudnn_on_gpu=True,
                                 data_format=data_format,dilations=dilations,name=name))
             tf.summary.histogram( "act", conv )
             conv_ops.append(Bias_add_layer(bias=bias, data_format=data_format))
