@@ -54,6 +54,50 @@ _DROPOUT_RATE = 0.5
 # vgg_16/conv3/conv3_3/biases
 # vgg_16/conv1/conv1_2/weights
 
+class Conv2D_layer(tf.keras.layers.Layer):
+
+    def __init__(self, output_dim, filter, strides, padding, use_cudnn_on_gpu,
+                        data_format, dilations, name, **kwargs):
+        self.output_dim = output_dim
+        self._filter = filter
+        self._strides = strides
+        self._padding = padding
+        self._use_cudnn_on_gpu = use_cudnn_on_gpu
+        self._data_format = data_format
+        self._dilations = dilations
+        self._name = name
+        super(Conv2D_layer, self).__init__(**kwargs)
+
+    def build(self, input_shape):
+        self._Conv = lambda x : tf.nn.conv2d(input=x, filter=self._filter, strides=self._strides, padding=self._padding, use_cudnn_on_gpu=self._use_cudnn_on_gpu,
+                            data_format=self._data_format, dilations=self._dilations, name=self._name)
+        super(Conv2D_layer, self).build(input_shape)
+
+    def call(self, inputs, mask=None):
+        return self._Conv(inputs)
+
+    def compute_output_shape(self, input_shape):
+        return tf.TensorShape(input_shape)
+
+class Bias_add_layer(tf.keras.layers.Layer):
+
+    def __init__(self, output_dim, bias, data_format, **kwargs):
+        self.output_dim = output_dim
+        self._data_format = data_format
+        self._bias = bias
+        super(Bias_add_layer, self).__init__(**kwargs)
+
+    def build(self, input_shape):
+        self._BiasAdd = lambda x : tf.nn.bias_add(value=x, bias=self._bias, data_format=self._data_format)
+        super(Bias_add_layer, self).build(input_shape)
+
+    def call(self, inputs, mask=None):
+        return self._BiasAdd(inputs)
+
+    def compute_output_shape(self, input_shape):
+        return tf.TensorShape(input_shape)
+
+
 class L2Normalization(tf.keras.layers.Layer):
     '''
     Performs L2 normalization on the input tensor with a learnable scaling parameter
@@ -79,14 +123,20 @@ class L2Normalization(tf.keras.layers.Layer):
             return tf.multiply(x, x_inv_norm, name=name)
     '''
 
-    def __init__(self, name, data_format, **kwargs):
+    def __init__(self, output_dim, name, feature_scale, training, data_format, **kwargs):
+        self.output_dim = output_dim
         self._data_format = data_format
         self._name = name
         self._axis = -1 if self._data_format == 'channels_last' else 1
+        self._weight_scale = tf.Variable([20.] * int(512*feature_scale), trainable=training, name='weights')
+        if self._data_format == 'channels_last':
+            self._weight_scale = tf.reshape(self._weight_scale, [1, 1, 1, -1], name='reshape')
+        else:
+            self._weight_scale = tf.reshape(self._weight_scale, [1, -1, 1, 1], name='reshape')
         super(L2Normalization, self).__init__(**kwargs)
 
     def build(self, input_shape):
-        self._L2Norm = lambda x : tf.multiply(x, tf.rsqrt(tf.maximum(tf.reduce_sum(tf.square(x), self._axis, keep_dims=True), 1e-10)), name=self._name)
+        self._L2Norm = lambda x : tf.multiply(self._weight_scale , tf.multiply(x, tf.rsqrt(tf.maximum(tf.reduce_sum(tf.square(x), self._axis, keep_dims=True), 1e-10)), name=self._name))
         super(L2Normalization, self).build(input_shape)
 
     def call(self, inputs, mask=None):
@@ -94,6 +144,7 @@ class L2Normalization(tf.keras.layers.Layer):
 
     def compute_output_shape(self, input_shape):
         return tf.TensorShape(input_shape)
+
 
 class ReLuLayer(tf.keras.layers.Layer):
     def __init__(self, name, **kwargs):
@@ -156,7 +207,7 @@ class VGG16Backbone(object):
             self.conv_block(512, 3, (1, 1, 1, 1), 'conv4_2', feature_scale),
             self.conv_block(512, 3, (1, 1, 1, 1), 'conv4_3', feature_scale),
             # conv4_3
-            tf.multiply(self._weight_scale, L2Normalization(name='norm', data_format=self._data_format)),
+            L2Normalization(name='norm', feature_scale=feature_scale, training=training, data_format=self._data_format),
             self._pool1,
             self.conv_block(512, 3, (1, 1, 1, 1), 'conv5_1', feature_scale),
             self.conv_block(512, 3, (1, 1, 1, 1), 'conv5_2', feature_scale),
@@ -266,27 +317,27 @@ class VGG16Backbone(object):
         '''
 
     def conv_block(self, filters, kernel_size, strides, name, feature_scale=1.0, padding='SAME', dilations=[1, 1, 1, 1],
-                    activation=tf.nn.relu, batch_norm=True, use_bias=True, reuse=None):
+                activation=tf.nn.relu, batch_norm=True, use_bias=True, reuse=None):
         with tf.variable_scope(name):
+            conv_ops = []
             data_format = "NHWC" if self._data_format == 'channels_last' else "NCHW"
             bias = tf.get_variable('bias', filters)
-            lambda x :
-                filter_shape = [ kernel_size, kernel_size, x.shape[self._bn_axis], filters ]
-                conv_filter = tf.Variable( 'kernel', filter_shape )
-                tf.summary.histogram( "weights", conv_filter )
-                conv = tf.nn.conv2d(input=x,filter=conv_filter,strides=strides,padding=padding,use_cudnn_on_gpu=True,
-                                    data_format=data_format,dilations=dilations,name=name)
+            filter_shape = [ kernel_size, kernel_size, x.shape[self._bn_axis], filters ]
+            conv_filter = tf.get_variable( 'kernel', filter_shape )
+            tf.summary.histogram( "weights", conv_filter )
+            conv_ops.append(Conv2D_layer(filter=conv_filter,strides=strides,padding=padding,use_cudnn_on_gpu=True,
+                                data_format=data_format,dilations=dilations,name=name))
             tf.summary.histogram( "act", conv )
-            conv = tf.nn.bias_add(conv, bias, data_format=data_format)
+            conv_ops.append(Bias_add_layer(bias=bias, data_format=data_format))
             if batch_norm:
-                conv = tf.layers.batch_normalization(conv,axis=self._bn_axis, momentum=_BATCH_NORM_DECAY, epsilon=_BATCH_NORM_EPSILON, fused=_USE_FUSED_BN,
-                        reuse=None)
+                conv_ops.append(tf.keras.layers.batch_normalization(axis=self._bn_axis, momentum=_BATCH_NORM_DECAY, epsilon=_BATCH_NORM_EPSILON, fused=_USE_FUSED_BN,
+                        reuse=None))
             else:
-                conv = tf.layers.dropout(conv, rate=_DROPOUT_RATE)
+                conv_ops.append(tf.keras.layers.Dropout(rate=_DROPOUT_RATE))
             tf.summary.histogram( "act_bn", conv )
-            conv = tf.nn.relu(conv)
+            conv_ops.append(tf.keras.layers.ReLu())
             tf.summary.histogram( "act_bn_r", conv )
-            return conv
+            return conv_ops
 
     '''
     def conv_block(self, inputs, filters, kernel_size, strides, name, feature_scale=1.0, padding='SAME', dilations=[1, 1, 1, 1],
@@ -373,13 +424,13 @@ def multibox_head(feature_layers, num_classes, num_anchors_depth_per_layer, data
     with tf.variable_scope('multibox_head'):
         cls_preds = []
         loc_preds = []
-        for ind, feat in enumerate(feature_layers):
-            loc_preds.append(tf.layers.conv2d(feat, num_anchors_depth_per_layer[ind] * 4, (3, 3), use_bias=True,
+        for ind, feat in enumerate(feature_layers.layers):
+            loc_preds.append(tf.layers.conv2d(feat.output, num_anchors_depth_per_layer[ind] * 4, (3, 3), use_bias=True,
                         name='loc_{}'.format(ind), strides=(1, 1),
                         padding='same', data_format=data_format, activation=None,
                         kernel_initializer=tf.glorot_uniform_initializer(),
                         bias_initializer=tf.zeros_initializer()))
-            cls_preds.append(tf.layers.conv2d(feat, num_anchors_depth_per_layer[ind] * num_classes, (3, 3), use_bias=True,
+            cls_preds.append(tf.layers.conv2d(feat.output, num_anchors_depth_per_layer[ind] * num_classes, (3, 3), use_bias=True,
                         name='cls_{}'.format(ind), strides=(1, 1),
                         padding='same', data_format=data_format, activation=None,
                         kernel_initializer=tf.glorot_uniform_initializer(),
