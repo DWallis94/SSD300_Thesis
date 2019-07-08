@@ -400,10 +400,10 @@ class VGG16Backbone(object):
         conv9_2_mbox_loc = Conv2D(n_boxes[5] * 4, (3, 3), padding='same', kernel_initializer='he_normal',
                                   kernel_regularizer=l2(l2_reg), name='conv9_2_mbox_loc')(conv9_2)
 
-        class_preds = [conv4_3_norm_mbox_conf, fc7_mbox_conf, conv6_2_mbox_conf, conv7_2_mbox_conf, conv8_2_mbox_conf, conv9_2_mbox_conf]
-        loc_preds = [conv4_3_norm_mbox_loc, fc7_mbox_loc, conv6_2_mbox_loc, conv7_2_mbox_loc, conv8_2_mbox_loc, conv9_2_mbox_loc]
+        cls_pred = [conv4_3_norm_mbox_conf, fc7_mbox_conf, conv6_2_mbox_conf, conv7_2_mbox_conf, conv8_2_mbox_conf, conv9_2_mbox_conf]
+        location_pred = [conv4_3_norm_mbox_loc, fc7_mbox_loc, conv6_2_mbox_loc, conv7_2_mbox_loc, conv8_2_mbox_loc, conv9_2_mbox_loc]
 
-        return class_preds, loc_preds
+        return location_pred, cls_pred
 
     '''
     def forward(self, inputs, feature_scale=1.0, training=False):

@@ -295,7 +295,8 @@ def ssd_model_fn(features, labels, mode, params):
 
     #print(all_num_anchors_depth)
     with tf.variable_scope(params['model_scope'], default_name=None, values=[features], reuse=tf.AUTO_REUSE):
-        inputs = Input(shape=())
+        image, image_data = input_pipeline(dataset_pattern='train-*', is_training=True, batch_size=FLAGS.batch_size)()
+        inputs = Input(shape=(image_data['shape']))
         if FLAGS.low_precision:
             backbone = ssd_net_low.VGG16Backbone(feature_scale=FLAGS.feature_scale, training=(mode == tf.estimator.ModeKeys.TRAIN), data_format=params['data_format'])
             location_pred, cls_pred = backbone.forward(inputs)
@@ -305,11 +306,11 @@ def ssd_model_fn(features, labels, mode, params):
             location_pred, cls_pred = backbone.forward(inputs)
             #location_pred, cls_pred = ssd_net_high.multibox_head(feature_layers, params['num_classes'], all_num_anchors_depth, data_format=params['data_format'])
 
+        # Rearrange image tensors depending on data_format
         if params['data_format'] == 'channels_first':
             cls_pred = [tf.transpose(pred, [0, 2, 3, 1]) for pred in cls_pred]
             location_pred = [tf.transpose(pred, [0, 2, 3, 1]) for pred in location_pred]
 
-        #tf.summary.histogram('feature_layers',feature_layers)
         cls_pred = [tf.reshape(pred, [tf.shape(features)[0], -1, params['num_classes']]) for pred in cls_pred]
         location_pred = [tf.reshape(pred, [tf.shape(features)[0], -1, 4]) for pred in location_pred]
 
