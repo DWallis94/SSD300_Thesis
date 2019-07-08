@@ -295,14 +295,15 @@ def ssd_model_fn(features, labels, mode, params):
 
     #print(all_num_anchors_depth)
     with tf.variable_scope(params['model_scope'], default_name=None, values=[features], reuse=tf.AUTO_REUSE):
+        inputs = Input(shape=())
         if FLAGS.low_precision:
             backbone = ssd_net_low.VGG16Backbone(feature_scale=FLAGS.feature_scale, training=(mode == tf.estimator.ModeKeys.TRAIN), data_format=params['data_format'])
-            feature_layers = backbone.forward()
-            location_pred, cls_pred = ssd_net_low.multibox_head(feature_layers, params['num_classes'], all_num_anchors_depth, data_format=params['data_format'])
+            location_pred, cls_pred = backbone.forward(inputs)
+            #location_pred, cls_pred = ssd_net_low.multibox_head(feature_layers, params['num_classes'], all_num_anchors_depth, data_format=params['data_format'])
         else:
             backbone = ssd_net_high.VGG16Backbone(feature_scale=FLAGS.feature_scale, training=(mode == tf.estimator.ModeKeys.TRAIN), data_format=params['data_format'])
-            feature_layers = backbone.forward()
-            location_pred, cls_pred = ssd_net_high.multibox_head(feature_layers, params['num_classes'], all_num_anchors_depth, data_format=params['data_format'])
+            location_pred, cls_pred = backbone.forward(inputs)
+            #location_pred, cls_pred = ssd_net_high.multibox_head(feature_layers, params['num_classes'], all_num_anchors_depth, data_format=params['data_format'])
 
         if params['data_format'] == 'channels_first':
             cls_pred = [tf.transpose(pred, [0, 2, 3, 1]) for pred in cls_pred]
@@ -380,18 +381,6 @@ def ssd_model_fn(features, labels, mode, params):
 
     if mode == tf.estimator.ModeKeys.PREDICT:
         return tf.estimator.EstimatorSpec(mode=mode, predictions=predictions)
-
-## Reduced Classes Issue:
-
-#Found that reducing the number of classes affected the tensor flaten_cls_targets s.t. it would have the incorrect range.
-#E.g. Classes: 0=none, 1=car yielded flaten_cls_targets=[0, 1, 2]?!
-#Didn't apply to either 1 class/21 classes for some reason?!
-
-#Inelegant solution: use flaten_cls_targets = tf.minimum(flaten_cls_targets, FLAGS.num_classes - 1)
-
-#(Don't judge me, it works OK?)
-
-#Test with: #flaten_cls_targets=tf.Print(flaten_cls_targets, [tf.reduce_max(flaten_cls_targets)], summarize=1000)
 
     # Calculate loss, which includes softmax cross entropy and L2 regularization.
     #cross_entropy = tf.cond(n_positives > 0, lambda: tf.losses.sparse_softmax_cross_entropy(labels=flaten_cls_targets, logits=cls_pred), lambda: 0.) * (params['negative_ratio'] + 1.)
