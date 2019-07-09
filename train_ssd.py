@@ -419,14 +419,14 @@ def ssd_model_fn(features, labels, mode, params):
                 tf.identity(cls_accuracy[1], name='cls_accuracy')
                 tf.summary.scalar('cls_accuracy', cls_accuracy[1])
 
-    if mode == 'EVAL':
+    #if mode == 'EVAL':
         # do something different?
-        #return tf.estimator.EstimatorSpec(mode=mode, predictions=predictions)
+        # return tf.estimator.EstimatorSpec(mode=mode, predictions=predictions)
 
-    # Calculate loss, which includes softmax cross entropy and L2 regularization.
-    #cross_entropy = tf.cond(n_positives > 0, lambda: tf.losses.sparse_softmax_cross_entropy(labels=flaten_cls_targets, logits=cls_pred), lambda: 0.) * (params['negative_ratio'] + 1.)
+        # Calculate loss, which includes softmax cross entropy and L2 regularization.
+        #cross_entropy = tf.cond(n_positives > 0, lambda: tf.losses.sparse_softmax_cross_entropy(labels=flaten_cls_targets, logits=cls_pred), lambda: 0.) * (params['negative_ratio'] + 1.)
 
-    #flaten_cls_targets=tf.Print(flaten_cls_targets, [flaten_cls_targets], summarize=1000)
+        #flaten_cls_targets=tf.Print(flaten_cls_targets, [flaten_cls_targets], summarize=1000)
 
     cross_entropy = tf.losses.sparse_softmax_cross_entropy(
         labels=flaten_cls_targets, logits=cls_pred) * (params['negative_ratio'] + 1.)
@@ -512,7 +512,7 @@ def main(_):
     config = tf.ConfigProto(allow_soft_placement=True, log_device_placement=False, intra_op_parallelism_threads=FLAGS.num_cpu_threads,
                             inter_op_parallelism_threads=FLAGS.num_cpu_threads, gpu_options=gpu_options)
     sess = tf.Session(config=config)
-    set_session(sess)
+    tf.keras.backend.set_session(sess)
 
     num_gpus = validate_batch_size_for_multi_gpu(FLAGS.batch_size)
 
@@ -542,14 +542,17 @@ def main(_):
         'acc': 'post_forward/cls_accuracy',
     }
 
-    features, labels = input_pipeline(dataset_pattern='train-*', is_training=True, batch_size=FLAGS.batch_size)()
+    features, labels = input_pipeline(
+        dataset_pattern='train-*', is_training=True, batch_size=FLAGS.batch_size)()
 
     # Need to redo the input pipeline so it feeds into features and label args correctly
     model = ssd_model_fn(features, labels, mode='TRAIN', params=params)
 
     # x gets prediction labels, y gets groundtruth labels?
-    model.fit(x=input_pipeline, y=input_pipeline, batch_size=FLAGS.batch_size, steps_per_epoch=FLAGS.max_number_of_steps)
-    model.evaluate(x=input_pipeline, y=input_pipeline, batch_size=FLAGS.batch_size)
+    model.fit(x=input_pipeline, y=input_pipeline, batch_size=FLAGS.batch_size,
+              steps_per_epoch=FLAGS.max_number_of_steps)
+    model.evaluate(x=input_pipeline, y=input_pipeline,
+                   batch_size=FLAGS.batch_size)
 
     '''
     Estimator stuff! Completely gut!
