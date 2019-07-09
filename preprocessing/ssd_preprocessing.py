@@ -489,7 +489,7 @@ def preprocess_for_eval(image, out_shape, add_noise=None, data_format='channels_
   """
   if add_noise:
       image = add_gaussian_noise(image, add_noise)
-  
+
   with tf.name_scope(scope, 'ssd_preprocessing_eval', [image]):
     image = tf.to_float(image)
     image = tf.image.resize_images(image, out_shape, method=tf.image.ResizeMethod.BILINEAR, align_corners=False)

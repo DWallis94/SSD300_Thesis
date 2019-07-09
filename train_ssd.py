@@ -295,8 +295,11 @@ def ssd_model_fn(features, labels, mode, params):
 
     #print(all_num_anchors_depth)
     with tf.variable_scope(params['model_scope'], default_name=None, values=[features], reuse=tf.AUTO_REUSE):
-        image, image_data = input_pipeline(dataset_pattern='train-*', is_training=True, batch_size=FLAGS.batch_size)()
-        inputs = Input(shape=(image_data['shape']))
+        if FLAGS.data_format == 'channels_first':
+            img_shape = (3, FLAGS.train_image_size, FLAGS.train_image_size)
+        else:
+            img_shape = (FLAGS.train_image_size, FLAGS.train_image_size, 3)
+        inputs = tf.keras.Input(shape=img_shape)
         if FLAGS.low_precision:
             backbone = ssd_net_low.VGG16Backbone(feature_scale=FLAGS.feature_scale, training=(mode == tf.estimator.ModeKeys.TRAIN), data_format=params['data_format'])
             location_pred, cls_pred = backbone.forward(inputs)
