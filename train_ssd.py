@@ -301,11 +301,11 @@ def ssd_model_fn(features, labels, mode, params):
             img_shape = (FLAGS.train_image_size, FLAGS.train_image_size, 3)
         inputs = tf.keras.Input(shape=img_shape)
         if FLAGS.low_precision:
-            backbone = ssd_net_low.VGG16Backbone(feature_scale=FLAGS.feature_scale, training=(mode == tf.estimator.ModeKeys.TRAIN), data_format=params['data_format'])
+            backbone = ssd_net_low.VGG16Backbone(n_boxes=all_num_anchors_depth, n_classes=FLAGS.num_classes, feature_scale=FLAGS.feature_scale, training=(mode == tf.estimator.ModeKeys.TRAIN), data_format=params['data_format'])
             location_pred, cls_pred = backbone.forward(inputs)
             #location_pred, cls_pred = ssd_net_low.multibox_head(feature_layers, params['num_classes'], all_num_anchors_depth, data_format=params['data_format'])
         else:
-            backbone = ssd_net_high.VGG16Backbone(feature_scale=FLAGS.feature_scale, training=(mode == tf.estimator.ModeKeys.TRAIN), data_format=params['data_format'])
+            backbone = ssd_net_high.VGG16Backbone(n_boxes=all_num_anchors_depth, n_classes=FLAGS.num_classes, feature_scale=FLAGS.feature_scale, training=(mode == tf.estimator.ModeKeys.TRAIN), data_format=params['data_format'])
             location_pred, cls_pred = backbone.forward(inputs)
             #location_pred, cls_pred = ssd_net_high.multibox_head(feature_layers, params['num_classes'], all_num_anchors_depth, data_format=params['data_format'])
 
