@@ -139,9 +139,6 @@ tf.app.flags.DEFINE_boolean(
     'imgnet', False,
     'Whether to use the imgnet dataset on the server.')
 tf.app.flags.DEFINE_float(
-    'add_noise', None,
-    'Whether to add gaussian noise to the imageset prior to training.')
-tf.app.flags.DEFINE_float(
     'feature_scale', 1.0,
     'Factor by which to scale the number of convolutional kernel feature layers.')
 
@@ -197,7 +194,7 @@ def get_init_fn():
 global_anchor_info = dict()
 
 
-def input_pipeline(dataset_pattern='train-*', add_noise=FLAGS.add_noise, is_training=True, batch_size=FLAGS.batch_size):
+def input_pipeline(dataset_pattern='train-*', is_training=True, batch_size=FLAGS.batch_size):
     def input_fn():
         out_shape = [FLAGS.train_image_size] * 2
         anchor_creator = anchor_manipulator.AnchorCreator(out_shape,
@@ -223,7 +220,7 @@ def input_pipeline(dataset_pattern='train-*', add_noise=FLAGS.add_noise, is_trai
                                                                   prior_scaling=[0.1, 0.1, 0.2, 0.2])
 
         def image_preprocessing_fn(image_, labels_, bboxes_): return ssd_preprocessing.preprocess_image(
-            image_, labels_, bboxes_, out_shape, add_noise=add_noise, is_training=is_training, data_format=FLAGS.data_format, output_rgb=False)
+            image_, labels_, bboxes_, out_shape, is_training=is_training, data_format=FLAGS.data_format, output_rgb=False)
         def anchor_encoder_fn(glabels_, gbboxes_): return anchor_encoder_decoder.encode_all_anchors(
             glabels_, gbboxes_, all_anchors, all_num_anchors_depth, all_num_anchors_spatial)
 
@@ -423,7 +420,8 @@ def ssd_model_fn(features, labels, mode, params):
                 tf.summary.scalar('cls_accuracy', cls_accuracy[1])
 
     if mode == 'EVAL':
-        return tf.estimator.EstimatorSpec(mode=mode, predictions=predictions)
+        # do something different?
+        #return tf.estimator.EstimatorSpec(mode=mode, predictions=predictions)
 
     # Calculate loss, which includes softmax cross entropy and L2 regularization.
     #cross_entropy = tf.cond(n_positives > 0, lambda: tf.losses.sparse_softmax_cross_entropy(labels=flaten_cls_targets, logits=cls_pred), lambda: 0.) * (params['negative_ratio'] + 1.)
@@ -543,6 +541,8 @@ def main(_):
         'l2': 'l2_loss',
         'acc': 'post_forward/cls_accuracy',
     }
+
+    features, labels = input_pipeline(dataset_pattern='train-*', is_training=True, batch_size=FLAGS.batch_size)()
 
     # Need to redo the input pipeline so it feeds into features and label args correctly
     model = ssd_model_fn(features, labels, mode='TRAIN', params=params)
