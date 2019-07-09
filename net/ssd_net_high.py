@@ -89,7 +89,8 @@ class conv_block(tf.keras.layers.Layer):
             raise ValueError('The channel dimension of the inputs '
                              'should be defined. Found `None`.')
         input_dim = int(input_shape[channel_axis])
-        kernel_shape = (self.kernel_size, self.kernel_size, input_dim, self.filters)
+        kernel_shape = (self.kernel_size, self.kernel_size,
+                        input_dim, self.filters)
 
         self.kernel = self.add_weight(
             name='kernel',
@@ -105,14 +106,14 @@ class conv_block(tf.keras.layers.Layer):
         else:
             self.bias = None
         self.input_spec = tf.keras.layers.InputSpec(ndim=self.rank + 2,
-                                    axes={channel_axis: input_dim})
+                                                    axes={channel_axis: input_dim})
         if self.padding == 'causal':
             op_padding = 'valid'
         else:
             op_padding = self.padding
         if not isinstance(op_padding, (list, tuple)):
             op_padding = op_padding.upper()
-        #self._convolution_op = tf.nn_ops.Convolution(
+        # self._convolution_op = tf.nn_ops.Convolution(
         #    input_shape,
         #    filter_shape=self.kernel.shape,
         #    dilation_rate=self.dilation_rate,
@@ -256,7 +257,7 @@ class VGG16Backbone(object):
         self.n_boxes = n_boxes
         self.n_classes = n_classes
         self.l2_reg = 0.0005
-        self._training=training
+        self._training = training
         self._feature_scale = feature_scale
         self._data_format = data_format
         self._bn_axis = -1 if data_format == 'channels_last' else 1
@@ -393,6 +394,10 @@ class VGG16Backbone(object):
                     conv7_2_mbox_conf, conv8_2_mbox_conf, conv9_2_mbox_conf]
         location_pred = [conv4_3_norm_mbox_loc, fc7_mbox_loc, conv6_2_mbox_loc,
                          conv7_2_mbox_loc, conv8_2_mbox_loc, conv9_2_mbox_loc]
+
+        #model = tf.keras.Model(inputs=inputs, outputs=[conv4_3_norm_mbox_conf, fc7_mbox_conf, conv6_2_mbox_conf,
+        #                                               conv7_2_mbox_conf, conv8_2_mbox_conf, conv9_2_mbox_conf, conv4_3_norm_mbox_loc, fc7_mbox_loc, conv6_2_mbox_loc,
+        #                                               conv7_2_mbox_loc, conv8_2_mbox_loc, conv9_2_mbox_loc])
 
         return location_pred, cls_pred
 
