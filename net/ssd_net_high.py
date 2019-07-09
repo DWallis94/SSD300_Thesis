@@ -255,6 +255,7 @@ class VGG16Backbone(object):
         super(VGG16Backbone, self).__init__()
         self.n_boxes = n_boxes
         self.n_classes = n_classes
+        self.l2_reg = 0.0005
         self._training=training
         self._feature_scale = feature_scale
         self._data_format = data_format
@@ -361,32 +362,32 @@ class VGG16Backbone(object):
 
         # We precidt `n_classes` confidence values for each box, hence the confidence predictors have depth `n_boxes * n_classes`
         # Output shape of the confidence layers: `(batch, height, width, n_boxes * n_classes)`
-        conv4_3_norm_mbox_conf = tf.keras.layers.Conv2D(n_boxes[0] * self.n_classes, (3, 3), padding='same', kernel_initializer='he_normal',
-                                                        kernel_regularizer=l2(l2_reg), name='conv4_3_norm_mbox_conf')(conv4_3_norm)
-        fc7_mbox_conf = tf.keras.layers.Conv2D(n_boxes[1] * self.n_classes, (3, 3), padding='same',
-                                               kernel_initializer='he_normal', kernel_regularizer=l2(l2_reg), name='fc7_mbox_conf')(conv7)
-        conv6_2_mbox_conf = tf.keras.layers.Conv2D(n_boxes[2] * self.n_classes, (3, 3), padding='same',
-                                                   kernel_initializer='he_normal', kernel_regularizer=l2(l2_reg), name='conv6_2_mbox_conf')(conv6_2)
-        conv7_2_mbox_conf = tf.keras.layers.Conv2D(n_boxes[3] * self.n_classes, (3, 3), padding='same',
-                                                   kernel_initializer='he_normal', kernel_regularizer=l2(l2_reg), name='conv7_2_mbox_conf')(conv7_2)
-        conv8_2_mbox_conf = tf.keras.layers.Conv2D(n_boxes[4] * self.n_classes, (3, 3), padding='same',
-                                                   kernel_initializer='he_normal', kernel_regularizer=l2(l2_reg), name='conv8_2_mbox_conf')(conv8_2)
-        conv9_2_mbox_conf = tf.keras.layers.Conv2D(n_boxes[5] * self.n_classes, (3, 3), padding='same',
-                                                   kernel_initializer='he_normal', kernel_regularizer=l2(l2_reg), name='conv9_2_mbox_conf')(conv9_2)
+        conv4_3_norm_mbox_conf = tf.keras.layers.Conv2D(self.n_boxes[0] * self.n_classes, (3, 3), padding='same', kernel_initializer='he_normal',
+                                                        kernel_regularizer=tf.keras.regularizers.l2(self.l2_reg), name='conv4_3_norm_mbox_conf')(conv4_3_norm)
+        fc7_mbox_conf = tf.keras.layers.Conv2D(self.n_boxes[1] * self.n_classes, (3, 3), padding='same',
+                                               kernel_initializer='he_normal', kernel_regularizer=tf.keras.regularizers.l2(self.l2_reg), name='fc7_mbox_conf')(conv7)
+        conv6_2_mbox_conf = tf.keras.layers.Conv2D(self.n_boxes[2] * self.n_classes, (3, 3), padding='same',
+                                                   kernel_initializer='he_normal', kernel_regularizer=tf.keras.regularizers.l2(self.l2_reg), name='conv6_2_mbox_conf')(conv8_2)
+        conv7_2_mbox_conf = tf.keras.layers.Conv2D(self.n_boxes[3] * self.n_classes, (3, 3), padding='same',
+                                                   kernel_initializer='he_normal', kernel_regularizer=tf.keras.regularizers.l2(self.l2_reg), name='conv7_2_mbox_conf')(conv9_2)
+        conv8_2_mbox_conf = tf.keras.layers.Conv2D(self.n_boxes[4] * self.n_classes, (3, 3), padding='same',
+                                                   kernel_initializer='he_normal', kernel_regularizer=tf.keras.regularizers.l2(self.l2_reg), name='conv8_2_mbox_conf')(conv10_2)
+        conv9_2_mbox_conf = tf.keras.layers.Conv2D(self.n_boxes[5] * self.n_classes, (3, 3), padding='same',
+                                                   kernel_initializer='he_normal', kernel_regularizer=tf.keras.regularizers.l2(self.l2_reg), name='conv9_2_mbox_conf')(conv11_2)
         # We predict 4 box coordinates for each box, hence the localization predictors have depth `n_boxes * 4`
         # Output shape of the localization layers: `(batch, height, width, n_boxes * 4)`
         conv4_3_norm_mbox_loc = tf.keras.layers.Conv2D(self.n_boxes[0] * 4, (3, 3), padding='same', kernel_initializer='he_normal',
-                                                       kernel_regularizer=l2(l2_reg), name='conv4_3_norm_mbox_loc')(conv4_3_norm)
-        fc7_mbox_loc = tf.keras.layers.Conv2D(n_boxes[1] * 4, (3, 3), padding='same', kernel_initializer='he_normal',
-                                              kernel_regularizer=l2(l2_reg), name='fc7_mbox_loc')(conv7)
+                                                       kernel_regularizer=tf.keras.regularizers.l2(self.l2_reg), name='conv4_3_norm_mbox_loc')(conv4_3_norm)
+        fc7_mbox_loc = tf.keras.layers.Conv2D(self.n_boxes[1] * 4, (3, 3), padding='same', kernel_initializer='he_normal',
+                                              kernel_regularizer=tf.keras.regularizers.l2(self.l2_reg), name='fc7_mbox_loc')(conv7)
         conv6_2_mbox_loc = tf.keras.layers.Conv2D(self.n_boxes[2] * 4, (3, 3), padding='same', kernel_initializer='he_normal',
-                                                  kernel_regularizer=l2(l2_reg), name='conv6_2_mbox_loc')(conv6_2)
+                                                  kernel_regularizer=tf.keras.regularizers.l2(self.l2_reg), name='conv6_2_mbox_loc')(conv8_2)
         conv7_2_mbox_loc = tf.keras.layers.Conv2D(self.n_boxes[3] * 4, (3, 3), padding='same', kernel_initializer='he_normal',
-                                                  kernel_regularizer=l2(l2_reg), name='conv7_2_mbox_loc')(conv7_2)
+                                                  kernel_regularizer=tf.keras.regularizers.l2(self.l2_reg), name='conv7_2_mbox_loc')(conv9_2)
         conv8_2_mbox_loc = tf.keras.layers.Conv2D(self.n_boxes[4] * 4, (3, 3), padding='same', kernel_initializer='he_normal',
-                                                  kernel_regularizer=l2(l2_reg), name='conv8_2_mbox_loc')(conv8_2)
+                                                  kernel_regularizer=tf.keras.regularizers.l2(self.l2_reg), name='conv8_2_mbox_loc')(conv10_2)
         conv9_2_mbox_loc = tf.keras.layers.Conv2D(self.n_boxes[5] * 4, (3, 3), padding='same', kernel_initializer='he_normal',
-                                                  kernel_regularizer=l2(l2_reg), name='conv9_2_mbox_loc')(conv9_2)
+                                                  kernel_regularizer=tf.keras.regularizers.l2(self.l2_reg), name='conv9_2_mbox_loc')(conv11_2)
 
         cls_pred = [conv4_3_norm_mbox_conf, fc7_mbox_conf, conv6_2_mbox_conf,
                     conv7_2_mbox_conf, conv8_2_mbox_conf, conv9_2_mbox_conf]
