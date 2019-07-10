@@ -419,7 +419,7 @@ def ssd_model_fn(features, labels, mode, params):
                 tf.identity(cls_accuracy[1], name='cls_accuracy')
                 tf.summary.scalar('cls_accuracy', cls_accuracy[1])
 
-    #if mode == 'EVAL':
+    # if mode == 'EVAL':
         # do something different?
         # return tf.estimator.EstimatorSpec(mode=mode, predictions=predictions)
 
@@ -469,9 +469,10 @@ def ssd_model_fn(features, labels, mode, params):
         # Create a tensor named learning_rate for logging purposes.
         tf.summary.scalar('learning_rate', truncated_learning_rate)
 
-        optimizer = tf.train.MomentumOptimizer(learning_rate=truncated_learning_rate,
-                                               momentum=params['momentum'])
-        optimizer = tf.contrib.estimator.TowerOptimizer(optimizer)
+        #optimizer = tf.train.MomentumOptimizer(learning_rate=truncated_learning_rate, momentum=params['momentum'])
+        #optimizer = tf.contrib.estimator.TowerOptimizer(optimizer)
+        optimizer = tf.keras.optimizers.SGD(
+            lr=truncated_learning_rate, momentum=params['momentum'])
 
         # Batch norm requires update_ops to be added as a train_op dependency.
         update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
@@ -542,16 +543,15 @@ def main(_):
         'acc': 'post_forward/cls_accuracy',
     }
 
+    # TODO: recode input_pipeline to use tf.data library
     features, labels = input_pipeline(
         dataset_pattern='train-*', is_training=True, batch_size=FLAGS.batch_size)()
 
-    # Need to redo the input pipeline so it feeds into features and label args correctly
     model = ssd_model_fn(features, labels, mode='TRAIN', params=params)
 
-    # x gets prediction labels, y gets groundtruth labels?
-    model.fit(x=input_pipeline, y=input_pipeline, batch_size=FLAGS.batch_size,
+    model.fit(x=features, y=labels, batch_size=FLAGS.batch_size,
               steps_per_epoch=FLAGS.max_number_of_steps)
-    model.evaluate(x=input_pipeline, y=input_pipeline,
+    model.evaluate(x=features, y=labels,
                    batch_size=FLAGS.batch_size)
 
     '''

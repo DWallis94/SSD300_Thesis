@@ -56,14 +56,13 @@ _DROPOUT_RATE = 0.5
 
 
 class conv_block(tf.keras.layers.Layer):
-    def __init__(self, filters, kernel_size, data_format, bn_axis, batch_norm_decay, epsilon, fused, dropout_rate, strides=[1, 1, 1, 1], layer_name=None, feature_scale=1.0, padding='SAME', dilations=[1, 1, 1, 1],
+    def __init__(self, filters, kernel_size, data_format, bn_axis, batch_norm_decay, epsilon, fused, dropout_rate, strides=[1, 1, 1, 1], feature_scale=1.0, padding='SAME', dilations=[1, 1, 1, 1],
                  activation=tf.nn.relu, batch_norm=True, use_bias=True, reuse=False, **kwargs):
         #self.output_dim = output_dim
         self.rank = 2
         self.filters = filters
         self.kernel_size = kernel_size
         self.strides = strides
-        self.layer_name = layer_name
         self.feature_scale = feature_scale
         self.padding = padding
         self.dilations = dilations
@@ -71,7 +70,8 @@ class conv_block(tf.keras.layers.Layer):
         self.batch_norm = batch_norm
         self.use_bias = use_bias
         self.reuse = reuse
-        self.data_format = "NHWC" if data_format == 'channels_last' else "NCHW"
+        self.data_format = data_format
+        self.data_format_N = "NHWC" if data_format == 'channels_last' else "NCHW"
         self.bn_axis = bn_axis
         self.batch_norm_decay = batch_norm_decay
         self.epsilon = epsilon
@@ -91,16 +91,17 @@ class conv_block(tf.keras.layers.Layer):
         input_dim = int(input_shape[channel_axis])
         kernel_shape = (self.kernel_size, self.kernel_size,
                         input_dim, self.filters)
-
-        self.kernel = self.add_weight(
+        self.kernel = self.add_variable(
             name='kernel',
             shape=kernel_shape,
+            initializer='uniform',
             trainable=True,
             dtype=self.dtype)
         if self.use_bias:
-            self.bias = self.add_weight(
+            self.bias = self.add_variable(
                 name='bias',
                 shape=(self.filters,),
+                initializer='uniform',
                 trainable=True,
                 dtype=self.dtype)
         else:
@@ -124,31 +125,29 @@ class conv_block(tf.keras.layers.Layer):
         self.built = True
 
     def call(self, input, mask=None):
-        with tf.variable_scope(self.layer_name):
-            filter_shape = [self.kernel_size, self.kernel_size,
-                            input.shape[self.bn_axis], self.filters]
-            conv_filter = tf.get_variable('kernel', filter_shape)
-            tf.summary.histogram("weights_r", conv_filter)
-            bias = tf.get_variable('bias', self.filters)
-            conv = tf.nn.conv2d(input=input, filter=conv_filter, strides=self.strides, padding=self.padding, use_cudnn_on_gpu=True,
-                                data_format=self.data_format, dilations=self.dilations, name=self.name)
-            tf.summary.histogram("act", conv)
-            conv = tf.nn.bias_add(conv, bias, data_format=self.data_format)
-            if self.batch_norm:
-                conv = tf.layers.batch_normalization(conv, axis=self.bn_axis, momentum=self.batch_norm_decay, epsilon=self.epsilon, fused=self.fused,
-                                                     reuse=None)
-            else:
-                conv = tf.layers.dropout(conv, rate=self.dropout_rate)
-            tf.summary.histogram("act_bn", conv)
-            conv = tf.nn.relu(conv)
-            tf.summary.histogram("act_bn_r", conv)
-            return conv
+        filter_shape = [self.kernel_size, self.kernel_size,
+                        input.shape[self.bn_axis], self.filters]
+        tf.summary.histogram("weights_r", self.kernel)
+        conv = tf.nn.conv2d(input=input, filter=self.kernel, strides=self.strides, padding=self.padding, use_cudnn_on_gpu=True,
+                            data_format=self.data_format_N, dilations=self.dilations, name=self.name)
+        tf.summary.histogram("act", conv)
+        if self.use_bias:
+            conv = tf.nn.bias_add(conv, self.bias, data_format=self.data_format_N)
+        if self.batch_norm:
+            conv = tf.keras.layers.BatchNormalization(axis=self.bn_axis, momentum=self.batch_norm_decay, epsilon=self.epsilon, fused=self.fused)(conv)
+            #conv = tf.layers.batch_normalization(conv, axis=self.bn_axis, momentum=self.batch_norm_decay, epsilon=self.epsilon, fused=self.fused, reuse=None)
+        else:
+            conv = tf.keras.layers.Dropout(rate=self.dropout_rate)(conv)
+        tf.summary.histogram("act_bn", conv)
+        conv = tf.nn.relu(conv)
+        tf.summary.histogram("act_bn_r", conv)
+        return conv
 
     def compute_output_shape(self, input_shape):
         input_shape = tensor_shape.TensorShape(input_shape).as_list()
         filter_shape = [self.kernel_size, self.kernel_size,
                         input.shape[self.bn_axis], self.filters]
-        if self.data_format == 'NHWC':
+        if self.data_format_N == 'NHWC':
             space = input_shape[1:-1]
             new_space = []
             for i in range(len(space)):
@@ -196,33 +195,35 @@ class L2Normalization(tf.keras.layers.Layer):
     def l2_normalize(self, x, name):
         with tf.name_scope(name, "l2_normalize", [x]) as name:
             axis = -1 if self._data_format == 'channels_last' else 1
-            square_sum = tf.reduce_sum(tf.square(x), axis, keep_dims=True)
-            x_inv_norm = tf.rsqrt(tf.maximum(square_sum, 1e-10))
-            return tf.multiply(x, x_inv_norm, name=name)
+            return tf.nn.l2_normalize(x, epsilon=self.epsilon, axis=self.axis)
     '''
 
-    def __init__(self, training, data_format, name=None, feature_scale=1.0, **kwargs):
+    def __init__(self, data_format, training, epsilon=1e-10, **kwargs):
         # self.output_dim = output_dim
-        self._data_format = data_format
-        self._name = name
-        self._axis = -1 if self._data_format == 'channels_last' else 1
-        self._weight_scale = tf.Variable(
-            [20.] * 512, trainable=training, name='weights')
-        if self._data_format == 'channels_last':
-            self._weight_scale = tf.reshape(
-                self._weight_scale, [1, 1, 1, -1], name='reshape')
-        else:
-            self._weight_scale = tf.reshape(
-                self._weight_scale, [1, -1, 1, 1], name='reshape')
+        self.data_format = data_format
+        self.training = training
+        self.axis = -1 if self.data_format == 'channels_last' else 1
         super(L2Normalization, self).__init__(**kwargs)
 
     def build(self, input_shape):
-        self._L2Norm = lambda x: tf.multiply(self._weight_scale, tf.multiply(x, tf.rsqrt(
-            tf.maximum(tf.reduce_sum(tf.square(x), self._axis, keep_dims=True), 1e-10)), name=self._name))
-        super(L2Normalization, self).build(input_shape)
+        self.weight_scale = tf.Variable(
+            [20.] * 512, trainable=self.training, name='kernel')
+        if self.data_format == 'channels_last':
+            self.weight_scale = tf.reshape(
+                self.weight_scale, [1, 1, 1, -1], name='reshape')
+        else:
+            self.weight_scale = tf.reshape(
+                self.weight_scale, [1, -1, 1, 1], name='reshape')
+        self.built = True
 
     def call(self, inputs, mask=None):
-        return self._L2Norm(inputs)
+        return tf.multiply(self.weight_scale, self.l2_normalize(inputs, name='norm'), name='rescale')
+
+    def l2_normalize(self, x, name):
+        with tf.name_scope(name, "l2_normalize", [x]) as name:
+            square_sum = tf.reduce_sum(tf.square(x), self.axis, keep_dims=True)
+            x_inv_norm = tf.rsqrt(tf.maximum(square_sum, 1e-10))
+            return tf.multiply(x, x_inv_norm, name=name)
 
     def compute_output_shape(self, input_shape):
         return tf.TensorShape(input_shape)
@@ -292,113 +293,111 @@ class VGG16Backbone(object):
     def forward(self, inputs):
 
         with tf.variable_scope("conv1"):
-            conv1_1 = conv_block(filters=64, kernel_size=3, strides=(1, 1, 1, 1), layer_name='conv1_1', feature_scale=self._feature_scale, data_format=self._data_format,
-                                 bn_axis=self._bn_axis, batch_norm_decay=_BATCH_NORM_DECAY, epsilon=_BATCH_NORM_EPSILON, fused=_USE_FUSED_BN, dropout_rate=_DROPOUT_RATE)(inputs)
-            conv1_2 = conv_block(filters=64, kernel_size=3, strides=(1, 1, 1, 1), layer_name='conv1_2', feature_scale=self._feature_scale, data_format=self._data_format,
+            conv1_1 = conv_block(filters=64, kernel_size=3, strides=(1, 1, 1, 1), name='conv1_1', feature_scale=self._feature_scale, data_format=self._data_format,
+                                     bn_axis=self._bn_axis, batch_norm_decay=_BATCH_NORM_DECAY, epsilon=_BATCH_NORM_EPSILON, fused=_USE_FUSED_BN, dropout_rate=_DROPOUT_RATE)(inputs)
+            conv1_2 = conv_block(filters=64, kernel_size=3, strides=(1, 1, 1, 1), name='conv1_2', feature_scale=self._feature_scale, data_format=self._data_format,
                                  bn_axis=self._bn_axis, batch_norm_decay=_BATCH_NORM_DECAY, epsilon=_BATCH_NORM_EPSILON, fused=_USE_FUSED_BN, dropout_rate=_DROPOUT_RATE)(conv1_1)
-        conv1_2 = self._pool1(conv1_2)
+            conv1_2 = self._pool1(conv1_2)
         with tf.variable_scope("conv2"):
-            conv2_1 = conv_block(filters=128, kernel_size=3, strides=(1, 1, 1, 1), layer_name='conv2_1', feature_scale=self._feature_scale, data_format=self._data_format,
+            conv2_1 = conv_block(filters=128, kernel_size=3, strides=(1, 1, 1, 1), name='conv2_1', feature_scale=self._feature_scale, data_format=self._data_format,
                                  bn_axis=self._bn_axis, batch_norm_decay=_BATCH_NORM_DECAY, epsilon=_BATCH_NORM_EPSILON, fused=_USE_FUSED_BN, dropout_rate=_DROPOUT_RATE)(conv1_2)
-            conv2_2 = conv_block(filters=128, kernel_size=3, strides=(1, 1, 1, 1), layer_name='conv2_2', feature_scale=self._feature_scale, data_format=self._data_format,
+            conv2_2 = conv_block(filters=128, kernel_size=3, strides=(1, 1, 1, 1), name='conv2_2', feature_scale=self._feature_scale, data_format=self._data_format,
                                  bn_axis=self._bn_axis, batch_norm_decay=_BATCH_NORM_DECAY, epsilon=_BATCH_NORM_EPSILON, fused=_USE_FUSED_BN, dropout_rate=_DROPOUT_RATE)(conv2_1)
-        conv2_2 = self._pool1(conv2_2)
+            conv2_2 = self._pool1(conv2_2)
         with tf.variable_scope("conv3"):
-            conv3_1 = conv_block(filters=256, kernel_size=3, strides=(1, 1, 1, 1), layer_name='conv3_1', feature_scale=self._feature_scale, data_format=self._data_format,
+            conv3_1 = conv_block(filters=256, kernel_size=3, strides=(1, 1, 1, 1), name='conv3_1', feature_scale=self._feature_scale, data_format=self._data_format,
                                  bn_axis=self._bn_axis, batch_norm_decay=_BATCH_NORM_DECAY, epsilon=_BATCH_NORM_EPSILON, fused=_USE_FUSED_BN, dropout_rate=_DROPOUT_RATE)(conv2_2)
-            conv3_2 = conv_block(filters=256, kernel_size=3, strides=(1, 1, 1, 1), layer_name='conv3_2', feature_scale=self._feature_scale, data_format=self._data_format,
+            conv3_2 = conv_block(filters=256, kernel_size=3, strides=(1, 1, 1, 1), name='conv3_2', feature_scale=self._feature_scale, data_format=self._data_format,
                                  bn_axis=self._bn_axis, batch_norm_decay=_BATCH_NORM_DECAY, epsilon=_BATCH_NORM_EPSILON, fused=_USE_FUSED_BN, dropout_rate=_DROPOUT_RATE)(conv3_1)
-            conv3_3 = conv_block(filters=256, kernel_size=3, strides=(1, 1, 1, 1), layer_name='conv3_3', feature_scale=self._feature_scale, data_format=self._data_format,
+            conv3_3 = conv_block(filters=256, kernel_size=3, strides=(1, 1, 1, 1), name='conv3_3', feature_scale=self._feature_scale, data_format=self._data_format,
                                  bn_axis=self._bn_axis, batch_norm_decay=_BATCH_NORM_DECAY, epsilon=_BATCH_NORM_EPSILON, fused=_USE_FUSED_BN, dropout_rate=_DROPOUT_RATE)(conv3_2)
-        conv3_3 = self._pool1(conv3_3)
+            conv3_3 = self._pool1(conv3_3)
         with tf.variable_scope("conv4"):
-            conv4_1 = conv_block(filters=512, kernel_size=3, strides=(1, 1, 1, 1), layer_name='conv4_1', feature_scale=self._feature_scale, data_format=self._data_format,
+            conv4_1 = conv_block(filters=512, kernel_size=3, strides=(1, 1, 1, 1), name='conv4_1', feature_scale=self._feature_scale, data_format=self._data_format,
                                  bn_axis=self._bn_axis, batch_norm_decay=_BATCH_NORM_DECAY, epsilon=_BATCH_NORM_EPSILON, fused=_USE_FUSED_BN, dropout_rate=_DROPOUT_RATE)(conv3_3)
-            conv4_2 = conv_block(filters=512, kernel_size=3, strides=(1, 1, 1, 1), layer_name='conv4_2', feature_scale=self._feature_scale, data_format=self._data_format,
+            conv4_2 = conv_block(filters=512, kernel_size=3, strides=(1, 1, 1, 1), name='conv4_2', feature_scale=self._feature_scale, data_format=self._data_format,
                                  bn_axis=self._bn_axis, batch_norm_decay=_BATCH_NORM_DECAY, epsilon=_BATCH_NORM_EPSILON, fused=_USE_FUSED_BN, dropout_rate=_DROPOUT_RATE)(conv4_1)
-            conv4_3 = conv_block(filters=512, kernel_size=3, strides=(1, 1, 1, 1), layer_name='conv4_3', feature_scale=self._feature_scale, data_format=self._data_format,
+            conv4_3 = conv_block(filters=512, kernel_size=3, strides=(1, 1, 1, 1), name='conv4_3', feature_scale=self._feature_scale, data_format=self._data_format,
                                  bn_axis=self._bn_axis, batch_norm_decay=_BATCH_NORM_DECAY, epsilon=_BATCH_NORM_EPSILON, fused=_USE_FUSED_BN, dropout_rate=_DROPOUT_RATE)(conv4_2)
             # conv4_3
         with tf.variable_scope("conv4_3_scale"):
-            conv4_3_norm = L2Normalization(name='norm', feature_scale=self._feature_scale,
-                                           training=self._training, data_format=self._data_format)(conv4_3)
-        conv4_3_norm = self._pool1(conv4_3_norm)
+            conv4_3_norm = L2Normalization(name='norm', training=self._training, data_format=self._data_format)(conv4_3)
+            conv4_3_norm = self._pool1(conv4_3_norm)
         with tf.variable_scope("conv5"):
-            conv5_1 = conv_block(filters=512, kernel_size=3, strides=(1, 1, 1, 1), layer_name='conv5_1', feature_scale=self._feature_scale, data_format=self._data_format,
+            conv5_1 = conv_block(filters=512, kernel_size=3, strides=(1, 1, 1, 1), name='conv5_1', feature_scale=self._feature_scale, data_format=self._data_format,
                                  bn_axis=self._bn_axis, batch_norm_decay=_BATCH_NORM_DECAY, epsilon=_BATCH_NORM_EPSILON, fused=_USE_FUSED_BN, dropout_rate=_DROPOUT_RATE)(conv4_3_norm)
-            conv5_2 = conv_block(filters=512, kernel_size=3, strides=(1, 1, 1, 1), layer_name='conv5_2', feature_scale=self._feature_scale, data_format=self._data_format,
+            conv5_2 = conv_block(filters=512, kernel_size=3, strides=(1, 1, 1, 1), name='conv5_2', feature_scale=self._feature_scale, data_format=self._data_format,
                                  bn_axis=self._bn_axis, batch_norm_decay=_BATCH_NORM_DECAY, epsilon=_BATCH_NORM_EPSILON, fused=_USE_FUSED_BN, dropout_rate=_DROPOUT_RATE)(conv5_1)
-            conv5_3 = conv_block(filters=512, kernel_size=3, strides=(1, 1, 1, 1), layer_name='conv5_3', feature_scale=self._feature_scale, data_format=self._data_format,
+            conv5_3 = conv_block(filters=512, kernel_size=3, strides=(1, 1, 1, 1), name='conv5_3', feature_scale=self._feature_scale, data_format=self._data_format,
                                  bn_axis=self._bn_axis, batch_norm_decay=_BATCH_NORM_DECAY, epsilon=_BATCH_NORM_EPSILON, fused=_USE_FUSED_BN, dropout_rate=_DROPOUT_RATE)(conv5_2)
-        conv5_3 = self._pool5(conv5_2)
+            conv5_3 = self._pool5(conv5_2)
         # forward fc layers
         with tf.variable_scope("fc6"):
             fc6 = conv_block(filters=1024, feature_scale=self._feature_scale, kernel_size=3, strides=[1, 1, 1, 1], padding='SAME', dilations=self._dilation6,
-                             activation=tf.nn.relu, batch_norm=False, use_bias=True, layer_name='fc6', reuse=None, data_format=self._data_format, bn_axis=self._bn_axis, batch_norm_decay=_BATCH_NORM_DECAY, epsilon=_BATCH_NORM_EPSILON, fused=_USE_FUSED_BN, dropout_rate=_DROPOUT_RATE)(conv5_3)
+                             activation=tf.nn.relu, batch_norm=False, use_bias=True, name='fc6', reuse=None, data_format=self._data_format, bn_axis=self._bn_axis, batch_norm_decay=_BATCH_NORM_DECAY, epsilon=_BATCH_NORM_EPSILON, fused=_USE_FUSED_BN, dropout_rate=_DROPOUT_RATE)(conv5_3)
         with tf.variable_scope("fc7"):
             fc7 = conv_block(filters=1024, feature_scale=self._feature_scale, kernel_size=1, strides=[1, 1, 1, 1], padding='SAME',
-                             activation=tf.nn.relu, batch_norm=False, use_bias=True, layer_name='fc7', reuse=None, data_format=self._data_format, bn_axis=self._bn_axis, batch_norm_decay=_BATCH_NORM_DECAY, epsilon=_BATCH_NORM_EPSILON, fused=_USE_FUSED_BN, dropout_rate=_DROPOUT_RATE)(fc6)
+                             activation=tf.nn.relu, batch_norm=False, use_bias=True, name='fc7', reuse=None, data_format=self._data_format, bn_axis=self._bn_axis, batch_norm_decay=_BATCH_NORM_DECAY, epsilon=_BATCH_NORM_EPSILON, fused=_USE_FUSED_BN, dropout_rate=_DROPOUT_RATE)(fc6)
 
         # forward ssd layers
         with tf.variable_scope("additional_layers"):
             with tf.variable_scope("conv6"):
-                conv6_1 = conv_block(filters=256, feature_scale=self._feature_scale, kernel_size=1, strides=(
-                    1, 1, 1, 1), use_bias=True, layer_name='conv6_1', data_format=self._data_format, bn_axis=self._bn_axis, batch_norm_decay=_BATCH_NORM_DECAY, epsilon=_BATCH_NORM_EPSILON, fused=_USE_FUSED_BN, dropout_rate=_DROPOUT_RATE)(fc7)
+                conv6_1 = conv_block(filters=256, feature_scale=self._feature_scale, kernel_size=1,
+                                    strides=(1, 1, 1, 1), use_bias=True, name='conv6_1', data_format=self._data_format, bn_axis=self._bn_axis, batch_norm_decay=_BATCH_NORM_DECAY, epsilon=_BATCH_NORM_EPSILON, fused=_USE_FUSED_BN, dropout_rate=_DROPOUT_RATE)(fc7)
                 conv6_2 = conv_block(filters=512, feature_scale=self._feature_scale, kernel_size=3,
-                                     strides=self._stride8, use_bias=True, layer_name='conv6_2', data_format=self._data_format, bn_axis=self._bn_axis, batch_norm_decay=_BATCH_NORM_DECAY, epsilon=_BATCH_NORM_EPSILON, fused=_USE_FUSED_BN, dropout_rate=_DROPOUT_RATE)(conv6_1)
+                                     strides=self._stride8, use_bias=True, name='conv6_2', data_format=self._data_format, bn_axis=self._bn_axis, batch_norm_decay=_BATCH_NORM_DECAY, epsilon=_BATCH_NORM_EPSILON, fused=_USE_FUSED_BN, dropout_rate=_DROPOUT_RATE)(conv6_1)
             with tf.variable_scope("conv7"):
-                conv7_1 = conv_block(filters=128, feature_scale=self._feature_scale, kernel_size=1, strides=(1, 1, 1, 1), use_bias=True, layer_name='conv7_1', data_format=self._data_format,
+                conv7_1 = conv_block(filters=128, feature_scale=self._feature_scale, kernel_size=1, strides=(1, 1, 1, 1), use_bias=True, name='conv7_1', data_format=self._data_format,
                                      bn_axis=self._bn_axis, batch_norm_decay=_BATCH_NORM_DECAY, epsilon=_BATCH_NORM_EPSILON, fused=_USE_FUSED_BN, dropout_rate=_DROPOUT_RATE)(conv6_2)
-                conv7_2 = conv_block(filters=256, feature_scale=self._feature_scale, kernel_size=3, strides=self._stride9, use_bias=True, layer_name='conv7_2', data_format=self._data_format,
+                conv7_2 = conv_block(filters=256, feature_scale=self._feature_scale, kernel_size=3, strides=self._stride9, use_bias=True, name='conv7_2', data_format=self._data_format,
                                      bn_axis=self._bn_axis, batch_norm_decay=_BATCH_NORM_DECAY, epsilon=_BATCH_NORM_EPSILON, fused=_USE_FUSED_BN, dropout_rate=_DROPOUT_RATE)(conv7_1)
             with tf.variable_scope("conv8"):
-                conv8_1 = conv_block(filters=128, feature_scale=self._feature_scale, kernel_size=1, strides=(1, 1, 1, 1), use_bias=True, layer_name='conv8_1', padding='VALID',
+                conv8_1 = conv_block(filters=128, feature_scale=self._feature_scale, kernel_size=1, strides=(1, 1, 1, 1), use_bias=True, name='conv8_1', padding='VALID',
                                      data_format=self._data_format, bn_axis=self._bn_axis, batch_norm_decay=_BATCH_NORM_DECAY, epsilon=_BATCH_NORM_EPSILON, fused=_USE_FUSED_BN, dropout_rate=_DROPOUT_RATE)(conv7_2)
-                conv8_2 = conv_block(filters=256, feature_scale=self._feature_scale, kernel_size=3, strides=(1, 1, 1, 1), use_bias=True, layer_name='conv8_2', padding='VALID',
+                conv8_2 = conv_block(filters=256, feature_scale=self._feature_scale, kernel_size=3, strides=(1, 1, 1, 1), use_bias=True, name='conv8_2', padding='VALID',
                                      data_format=self._data_format, bn_axis=self._bn_axis, batch_norm_decay=_BATCH_NORM_DECAY, epsilon=_BATCH_NORM_EPSILON, fused=_USE_FUSED_BN, dropout_rate=_DROPOUT_RATE)(conv8_1)
             with tf.variable_scope("conv9"):
-                conv9_1 = conv_block(filters=128, feature_scale=self._feature_scale, kernel_size=1, strides=(1, 1, 1, 1), use_bias=True, layer_name='conv9_1', padding='VALID',
+                conv9_1 = conv_block(filters=128, feature_scale=self._feature_scale, kernel_size=1, strides=(1, 1, 1, 1), use_bias=True, name='conv9_1', padding='VALID',
                                      data_format=self._data_format, bn_axis=self._bn_axis, batch_norm_decay=_BATCH_NORM_DECAY, epsilon=_BATCH_NORM_EPSILON, fused=_USE_FUSED_BN, dropout_rate=_DROPOUT_RATE)(conv8_2)
-                conv9_2 = conv_block(filters=256, feature_scale=self._feature_scale, kernel_size=3, strides=(1, 1, 1, 1), use_bias=True, layer_name='conv9_2', padding='VALID',
+                conv9_2 = conv_block(filters=256, feature_scale=self._feature_scale, kernel_size=3, strides=(1, 1, 1, 1), use_bias=True, name='conv9_2', padding='VALID',
                                      data_format=self._data_format, bn_axis=self._bn_axis, batch_norm_decay=_BATCH_NORM_DECAY, epsilon=_BATCH_NORM_EPSILON, fused=_USE_FUSED_BN, dropout_rate=_DROPOUT_RATE)(conv9_1)
 
-        # We precidt `n_classes` confidence values for each box, hence the confidence predictors have depth `n_boxes * n_classes`
+
+        # We predict `n_classes` confidence values for each box, hence the confidence predictors have depth `n_boxes * n_classes`
         # Output shape of the confidence layers: `(batch, height, width, n_boxes * n_classes)`
-        conv4_3_norm_mbox_conf = tf.keras.layers.Conv2D(self.n_boxes[0] * self.n_classes, (3, 3), padding='same', kernel_initializer='he_normal',
-                                                        kernel_regularizer=tf.keras.regularizers.l2(self.l2_reg), name='conv4_3_norm_mbox_conf')(conv4_3_norm)
-        fc7_mbox_conf = tf.keras.layers.Conv2D(self.n_boxes[1] * self.n_classes, (3, 3), padding='same',
-                                               kernel_initializer='he_normal', kernel_regularizer=tf.keras.regularizers.l2(self.l2_reg), name='fc7_mbox_conf')(fc7)
-        conv6_2_mbox_conf = tf.keras.layers.Conv2D(self.n_boxes[2] * self.n_classes, (3, 3), padding='same',
-                                                   kernel_initializer='he_normal', kernel_regularizer=tf.keras.regularizers.l2(self.l2_reg), name='conv6_2_mbox_conf')(conv6_2)
-        conv7_2_mbox_conf = tf.keras.layers.Conv2D(self.n_boxes[3] * self.n_classes, (3, 3), padding='same',
-                                                   kernel_initializer='he_normal', kernel_regularizer=tf.keras.regularizers.l2(self.l2_reg), name='conv7_2_mbox_conf')(conv7_2)
-        conv8_2_mbox_conf = tf.keras.layers.Conv2D(self.n_boxes[4] * self.n_classes, (3, 3), padding='same',
-                                                   kernel_initializer='he_normal', kernel_regularizer=tf.keras.regularizers.l2(self.l2_reg), name='conv8_2_mbox_conf')(conv8_2)
-        conv9_2_mbox_conf = tf.keras.layers.Conv2D(self.n_boxes[5] * self.n_classes, (3, 3), padding='same',
-                                                   kernel_initializer='he_normal', kernel_regularizer=tf.keras.regularizers.l2(self.l2_reg), name='conv9_2_mbox_conf')(conv9_2)
+        with tf.variable_scope("conf_layers"):
+            conv4_3_norm_mbox_conf = tf.keras.layers.Conv2D(self.n_boxes[0] * self.n_classes, (3, 3), padding='same', kernel_initializer='he_normal',
+                                                            kernel_regularizer=tf.keras.regularizers.l2(self.l2_reg), name='conv4_3_norm_mbox_conf')(conv4_3_norm)
+            fc7_mbox_conf = tf.keras.layers.Conv2D(self.n_boxes[1] * self.n_classes, (3, 3), padding='same',
+                                                   kernel_initializer='he_normal', kernel_regularizer=tf.keras.regularizers.l2(self.l2_reg), name='fc7_mbox_conf')(fc7)
+            conv6_2_mbox_conf = tf.keras.layers.Conv2D(self.n_boxes[2] * self.n_classes, (3, 3), padding='same',
+                                                       kernel_initializer='he_normal', kernel_regularizer=tf.keras.regularizers.l2(self.l2_reg), name='conv6_2_mbox_conf')(conv6_2)
+            conv7_2_mbox_conf = tf.keras.layers.Conv2D(self.n_boxes[3] * self.n_classes, (3, 3), padding='same',
+                                                       kernel_initializer='he_normal', kernel_regularizer=tf.keras.regularizers.l2(self.l2_reg), name='conv7_2_mbox_conf')(conv7_2)
+            conv8_2_mbox_conf = tf.keras.layers.Conv2D(self.n_boxes[4] * self.n_classes, (3, 3), padding='same',
+                                                       kernel_initializer='he_normal', kernel_regularizer=tf.keras.regularizers.l2(self.l2_reg), name='conv8_2_mbox_conf')(conv8_2)
+            conv9_2_mbox_conf = tf.keras.layers.Conv2D(self.n_boxes[5] * self.n_classes, (3, 3), padding='same',
+                                                       kernel_initializer='he_normal', kernel_regularizer=tf.keras.regularizers.l2(self.l2_reg), name='conv9_2_mbox_conf')(conv9_2)
         # We predict 4 box coordinates for each box, hence the localization predictors have depth `n_boxes * 4`
         # Output shape of the localization layers: `(batch, height, width, n_boxes * 4)`
-        conv4_3_norm_mbox_loc = tf.keras.layers.Conv2D(self.n_boxes[0] * 4, (3, 3), padding='same', kernel_initializer='he_normal',
-                                                       kernel_regularizer=tf.keras.regularizers.l2(self.l2_reg), name='conv4_3_norm_mbox_loc')(conv4_3_norm)
-        fc7_mbox_loc = tf.keras.layers.Conv2D(self.n_boxes[1] * 4, (3, 3), padding='same', kernel_initializer='he_normal',
-                                              kernel_regularizer=tf.keras.regularizers.l2(self.l2_reg), name='fc7_mbox_loc')(fc7)
-        conv6_2_mbox_loc = tf.keras.layers.Conv2D(self.n_boxes[2] * 4, (3, 3), padding='same', kernel_initializer='he_normal',
-                                                  kernel_regularizer=tf.keras.regularizers.l2(self.l2_reg), name='conv6_2_mbox_loc')(conv6_2)
-        conv7_2_mbox_loc = tf.keras.layers.Conv2D(self.n_boxes[3] * 4, (3, 3), padding='same', kernel_initializer='he_normal',
-                                                  kernel_regularizer=tf.keras.regularizers.l2(self.l2_reg), name='conv7_2_mbox_loc')(conv7_2)
-        conv8_2_mbox_loc = tf.keras.layers.Conv2D(self.n_boxes[4] * 4, (3, 3), padding='same', kernel_initializer='he_normal',
-                                                  kernel_regularizer=tf.keras.regularizers.l2(self.l2_reg), name='conv8_2_mbox_loc')(conv8_2)
-        conv9_2_mbox_loc = tf.keras.layers.Conv2D(self.n_boxes[5] * 4, (3, 3), padding='same', kernel_initializer='he_normal',
-                                                  kernel_regularizer=tf.keras.regularizers.l2(self.l2_reg), name='conv9_2_mbox_loc')(conv9_2)
+        with tf.variable_scope("loc_layers"):
+            conv4_3_norm_mbox_loc = tf.keras.layers.Conv2D(self.n_boxes[0] * 4, (3, 3), padding='same', kernel_initializer='he_normal',
+                                                           kernel_regularizer=tf.keras.regularizers.l2(self.l2_reg), name='conv4_3_norm_mbox_loc')(conv4_3_norm)
+            fc7_mbox_loc = tf.keras.layers.Conv2D(self.n_boxes[1] * 4, (3, 3), padding='same', kernel_initializer='he_normal',
+                                                  kernel_regularizer=tf.keras.regularizers.l2(self.l2_reg), name='fc7_mbox_loc')(fc7)
+            conv6_2_mbox_loc = tf.keras.layers.Conv2D(self.n_boxes[2] * 4, (3, 3), padding='same', kernel_initializer='he_normal',
+                                                      kernel_regularizer=tf.keras.regularizers.l2(self.l2_reg), name='conv6_2_mbox_loc')(conv6_2)
+            conv7_2_mbox_loc = tf.keras.layers.Conv2D(self.n_boxes[3] * 4, (3, 3), padding='same', kernel_initializer='he_normal',
+                                                      kernel_regularizer=tf.keras.regularizers.l2(self.l2_reg), name='conv7_2_mbox_loc')(conv7_2)
+            conv8_2_mbox_loc = tf.keras.layers.Conv2D(self.n_boxes[4] * 4, (3, 3), padding='same', kernel_initializer='he_normal',
+                                                      kernel_regularizer=tf.keras.regularizers.l2(self.l2_reg), name='conv8_2_mbox_loc')(conv8_2)
+            conv9_2_mbox_loc = tf.keras.layers.Conv2D(self.n_boxes[5] * 4, (3, 3), padding='same', kernel_initializer='he_normal',
+                                                      kernel_regularizer=tf.keras.regularizers.l2(self.l2_reg), name='conv9_2_mbox_loc')(conv9_2)
 
         cls_pred = [conv4_3_norm_mbox_conf, fc7_mbox_conf, conv6_2_mbox_conf,
                     conv7_2_mbox_conf, conv8_2_mbox_conf, conv9_2_mbox_conf]
         location_pred = [conv4_3_norm_mbox_loc, fc7_mbox_loc, conv6_2_mbox_loc,
                          conv7_2_mbox_loc, conv8_2_mbox_loc, conv9_2_mbox_loc]
-
-        # model = tf.keras.Model(inputs=inputs, outputs=[conv4_3_norm_mbox_conf, fc7_mbox_conf, conv6_2_mbox_conf,
-        #                                               conv7_2_mbox_conf, conv8_2_mbox_conf, conv9_2_mbox_conf, conv4_3_norm_mbox_loc, fc7_mbox_loc, conv6_2_mbox_loc,
-        #                                               conv7_2_mbox_loc, conv8_2_mbox_loc, conv9_2_mbox_loc])
 
         return location_pred, cls_pred
 
