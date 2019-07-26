@@ -20,12 +20,12 @@ import numpy as np
 from tensorflow.contrib.image.python.ops import image_ops
 
 def areas(gt_bboxes):
-    with tf.name_scope('bboxes_areas', [gt_bboxes]):
+    with tf.name_scope('bboxes_areas', None, [gt_bboxes]):
         ymin, xmin, ymax, xmax = tf.split(gt_bboxes, 4, axis=1)
         return (xmax - xmin) * (ymax - ymin)
 
 def intersection(gt_bboxes, default_bboxes):
-    with tf.name_scope('bboxes_intersection', [gt_bboxes, default_bboxes]):
+    with tf.name_scope('bboxes_intersection', None, [gt_bboxes, default_bboxes]):
         # num_anchors x 1
         ymin, xmin, ymax, xmax = tf.split(gt_bboxes, 4, axis=1)
         # 1 x num_anchors
@@ -40,7 +40,7 @@ def intersection(gt_bboxes, default_bboxes):
 
         return h * w
 def iou_matrix(gt_bboxes, default_bboxes):
-    with tf.name_scope('iou_matrix', [gt_bboxes, default_bboxes]):
+    with tf.name_scope('iou_matrix', None, [gt_bboxes, default_bboxes]):
         inter_vol = intersection(gt_bboxes, default_bboxes)
         # broadcast
         union_vol = areas(gt_bboxes) + tf.transpose(areas(default_bboxes), perm=[1, 0]) - inter_vol
@@ -52,7 +52,7 @@ def do_dual_max_match(overlap_matrix, low_thres, high_thres, ignore_between=True
     '''
     overlap_matrix: num_gt * num_anchors
     '''
-    with tf.name_scope('dual_max_match', [overlap_matrix]):
+    with tf.name_scope('dual_max_match', None, [overlap_matrix]):
         # first match from anchors' side
         anchors_to_gt = tf.argmax(overlap_matrix, axis=0)
         # the matching degree
@@ -212,7 +212,7 @@ class AnchorEncoder(object):
     #   order: ymin, xmin, ymax, xmax
     def decode_all_anchors(self, pred_location, num_anchors_per_layer):
         assert self._all_anchors is not None, 'no anchors to decode.'
-        with tf.name_scope('decode_all_anchors', [pred_location]):
+        with tf.name_scope('decode_all_anchors', None, [pred_location]):
             anchor_cy, anchor_cx, anchor_h, anchor_w = self._all_anchors
 
             pred_h = tf.exp(pred_location[:, -2] * self._prior_scaling[2]) * anchor_h
@@ -224,7 +224,7 @@ class AnchorEncoder(object):
 
     def ext_decode_all_anchors(self, pred_location, all_anchors, all_num_anchors_depth, all_num_anchors_spatial):
         assert (len(all_num_anchors_depth)==len(all_num_anchors_spatial)) and (len(all_num_anchors_depth)==len(all_anchors)), 'inconsist num layers for anchors.'
-        with tf.name_scope('ext_decode_all_anchors', [pred_location]):
+        with tf.name_scope('ext_decode_all_anchors', None, [pred_location]):
             num_anchors_per_layer = []
             for ind in range(len(all_anchors)):
                 num_anchors_per_layer.append(all_num_anchors_depth[ind] * all_num_anchors_spatial[ind])
@@ -330,4 +330,3 @@ class AnchorCreator(object):
             all_num_anchors_depth.append(anchors_this_layer[-2])
             all_num_anchors_spatial.append(anchors_this_layer[-1])
         return all_anchors, all_num_anchors_depth, all_num_anchors_spatial
-

@@ -19,7 +19,7 @@ from __future__ import print_function
 import tensorflow as tf
 
 slim = tf.contrib.slim
-    
+
 
 VOC_LABELS = {
     'none': (0, 'Background'),
@@ -48,14 +48,27 @@ VOC_LABELS = {
 
 VOC_LABELS_reduced = {
     'none': (0, 'Background'),
-    'bird': (1, 'Animal'),
-    'cat': (2, 'Animal'),
-    'cow': (3, 'Animal'),
-    'dog': (4, 'Animal'),
-    'horse': (5, 'Animal'),
-    'person': (6, 'Person'),
-    'sheep': (7, 'Animal'),
-    'background': (8, 'Background'),
+    'aeroplane': (1, 'Vehicle'),
+    'bicycle': (2, 'Vehicle'),
+    'bird': (3, 'Animal'),
+    'boat': (4, 'Vehicle'),
+    'bottle': (5, 'Indoor'),
+    'bus': (6, 'Vehicle'),
+    'car': (7, 'Vehicle'),
+    'cat': (8, 'Animal'),
+    'chair': (9, 'Indoor'),
+    'cow': (10, 'Animal'),
+    'diningtable': (11, 'Indoor'),
+    'dog': (12, 'Animal'),
+    'horse': (13, 'Animal'),
+    'motorbike': (14, 'Vehicle'),
+    'person': (15, 'Person'),
+    'pottedplant': (16, 'Indoor'),
+    'sheep': (17, 'Animal'),
+    'sofa': (18, 'Indoor'),
+    'train': (19, 'Vehicle'),
+    'tvmonitor': (20, 'Indoor'),
+	'background': (21, 'Background'),
 }
 
 COCO_LABELS = {
@@ -230,7 +243,7 @@ def slim_get_batch(num_classes, batch_size, split_name, file_pattern, num_reader
         isdifficult_mask =tf.cond(tf.count_nonzero(isdifficult, dtype=tf.int32) < tf.shape(isdifficult)[0],
                                 lambda : isdifficult < tf.ones_like(isdifficult),
                                 lambda : tf.one_hot(0, tf.shape(isdifficult)[0], on_value=True, off_value=False, dtype=tf.bool))
-        
+
         glabels_raw = tf.boolean_mask(glabels_raw, isdifficult_mask)
         gbboxes_raw = tf.boolean_mask(gbboxes_raw, isdifficult_mask)
 
