@@ -26,24 +26,33 @@ def quantize_and_prune(x, k, quant_range, begin_pruning, end_pruning, pruning_fr
     global_step = tf.train.get_global_step()
 
     print("Global step during quantization is...", str(global_step))
-    exit()
     min = quant_range[0]
     max = quant_range[1]
     step_size = (max - min) / 2**k
-    # Set elements in the quantize region to zero so they are not pruned
-    x_pruned = tf.zeros(shape=tf.shape(x))
+    stochastic_round_vect = np.vectorize(stochastic_round)
+    ## Define quant region, zero elsewhere
+    x_quant = tf.where(tf.logical_and(tf.greater_equal(x, min), tf.less_equal(x, max)), x, tf.zeros(shape=tf.shape(x)))
+    x_pruning = tf.where(tf.logical_or(tf.less(x, min), tf.greater(x, max)), x, tf.zeros(shape=tf.shape(x)))
+
+    ## Perform quantization in quant region
+    x_quant = step_size * (tf.floor(x_quant / step_size) + .5)
+
+    ## Perform pruning in pruning region
+    # If within pruning window, prune
     if (global_step >= begin_pruning) and (global_step < end_pruning) and (global_step % pruning_frequency == 0):
-        x_pruned = tf.where(tf.logical_and(tf.greater_equal(
-            x, min), tf.less_equal(x, max)), tf.zeros(shape=tf.shape(x)), x)
-        # Stochastically round elements outside the quantize region
-        stochastic_round_vect = np.vectorize(stochastic_round)
         x_pruned = tf.py_func(stochastic_round_vect, [x_pruned], tf.float32)
-        x_pruned = tf.where(tf.greater(x_pruned, 0), (min + step_size/2) * x_pruned, - (min + step_size/2) * x_pruned)
-        x_quant = step_size * (tf.floor(x / step_size) + .5)
-        # Add the non-overlapping pruned and quantized tensor output
-        return tf.add(x_pruned, x_quant)
+        #x_pruned = tf.where(tf.greater(x_pruned, 0), (min + step_size/2) * x_pruned, - (min + step_size/2) * x_pruned)
+
+    # If post-pruning window, set entire pruning region to zeros
+    elif (global_step >= end_pruning):
+        x_pruned = tf.zeros(shape=tf.shape(x))
+
+    # If prior to pruning-window or not on pruning_frequency step, don't prune
     else:
-        return quantize(x, k)
+        x_pruned = x_pruned
+
+    ## x_pruned and x_quant do not overlap (by design). So add them to get the pruned and quantized output
+    return tf.add(x_pruned, x_quant)
 
 
 def stop_grad(real, quant):
