@@ -65,13 +65,13 @@ def quantize_and_prune_weights(w, k, thresh, begin_pruning, end_pruning, pruning
     w_quant_neg = quantize_and_prune(
         w_clipped, np.floor((k - 1) / 2), [-1, -abs(thresh)], begin_pruning, end_pruning, pruning_frequency)
     w_quant = tf.add(w_quant_pos, w_quant_neg)
-    return stop_grad(w, w_quant)
+    return tf.reshape(stop_grad(w, w_quant), shape=tf.shape(w))
 
 
 def quantize_and_prune_activations(a, k, thresh, begin_pruning, end_pruning, pruning_frequency):
     a_clipped = tf.clip_by_value(a, 0, 1)
     a_quant = quantize_and_prune(a_clipped, k - 1, [abs(thresh), 1], begin_pruning, end_pruning, pruning_frequency)
-    return stop_grad(a, a_quant)
+    return tf.reshape(stop_grad(a, a_quant), shape=tf.shape(a))
 
 
 def quantize(zr, k):
