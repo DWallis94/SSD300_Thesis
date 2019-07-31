@@ -24,32 +24,31 @@ def stochastic_round(x):
 
 def quantize_and_prune(x, k, quant_range, begin_pruning, end_pruning, pruning_frequency):
     global_step = tf.train.get_global_step()
+    begin_pruning = tf.constant(begin_pruning, dtype=tf.int64)
+    end_pruning = tf.constant(end_pruning, dtype=tf.int64)
+    pruning_frequency = tf.constant(pruning_frequency, dtype=tf.int64)
 
-    print("Global step during quantization is...", str(global_step))
     min = quant_range[0]
     max = quant_range[1]
     step_size = (max - min) / 2**k
-    stochastic_round_vect = np.vectorize(stochastic_round)
     ## Define quant region, zero elsewhere
     x_quant = tf.where(tf.logical_and(tf.greater_equal(x, min), tf.less_equal(x, max)), x, tf.zeros(shape=tf.shape(x)))
-    x_pruning = tf.where(tf.logical_or(tf.less(x, min), tf.greater(x, max)), x, tf.zeros(shape=tf.shape(x)))
+    x_pruned = tf.where(tf.logical_or(tf.less(x, min), tf.greater(x, max)), x, tf.zeros(shape=tf.shape(x)))
 
     ## Perform quantization in quant region
     x_quant = step_size * (tf.floor(x_quant / step_size) + .5)
 
     ## Perform pruning in pruning region
     # If within pruning window, prune
-    if (global_step >= begin_pruning) and (global_step < end_pruning) and (global_step % pruning_frequency == 0):
-        x_pruned = tf.py_func(stochastic_round_vect, [x_pruned], tf.float32)
-        #x_pruned = tf.where(tf.greater(x_pruned, 0), (min + step_size/2) * x_pruned, - (min + step_size/2) * x_pruned)
+    cond_A = tf.reduce_all(tf.logical_and(tf.logical_and(tf.reduce_all(tf.greater_equal(global_step, begin_pruning)), tf.reduce_all(tf.less(global_step, end_pruning))), tf.reduce_all(tf.equal(tf.mod(global_step, pruning_frequency), tf.zeros(shape=tf.shape(global_step), dtype=tf.int64)))))
+    cond_B = tf.reduce_all(tf.greater_equal(global_step, end_pruning))
 
-    # If post-pruning window, set entire pruning region to zeros
-    elif (global_step >= end_pruning):
-        x_pruned = tf.zeros(shape=tf.shape(x))
+    stochastic_round_vect = np.vectorize(stochastic_round)
+    def prune_stochastic(x): return tf.py_func(stochastic_round_vect, [x], tf.float32)
+    def prune_absolute(x): return tf.zeros(shape=tf.shape(x))
+    def dont_prune(x): return x
 
-    # If prior to pruning-window or not on pruning_frequency step, don't prune
-    else:
-        x_pruned = x_pruned
+    x_pruned = tf.cond(cond_A, lambda: prune_stochastic(x_pruned), lambda: tf.cond(cond_B, lambda: prune_absolute(x_pruned), lambda: dont_prune(x_pruned)))
 
     ## x_pruned and x_quant do not overlap (by design). So add them to get the pruned and quantized output
     return tf.add(x_pruned, x_quant)
@@ -64,7 +63,7 @@ def quantize_and_prune_weights(w, k, thresh, begin_pruning, end_pruning, pruning
     w_quant_pos = quantize_and_prune(
         w_clipped, np.ceil((k - 1) / 2), [abs(thresh), 1], begin_pruning, end_pruning, pruning_frequency)
     w_quant_neg = quantize_and_prune(
-        w_clipped, np.floor((k - 1) / 2), [-1, -abs(thresh)])
+        w_clipped, np.floor((k - 1) / 2), [-1, -abs(thresh)], begin_pruning, end_pruning, pruning_frequency)
     w_quant = tf.add(w_quant_pos, w_quant_neg)
     return stop_grad(w, w_quant)
 
