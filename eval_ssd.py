@@ -45,7 +45,7 @@ tf.app.flags.DEFINE_float(
     'gpu_memory_fraction', 1., 'GPU memory fraction to use.')
 # scaffold related configuration
 tf.app.flags.DEFINE_string(
-    'data_dir', '../VOCROOT_reduced/tfrecords',
+    'data_dir', '../VOCROOT_backup/tfrecords',
     'The directory where the dataset input data is stored.')
 tf.app.flags.DEFINE_integer(
     'num_classes', len(dataset_common.VOC_LABELS_reduced), 'Number of classes to use in the dataset.')
@@ -121,7 +121,7 @@ FLAGS = tf.app.flags.FLAGS
 
 if FLAGS.imgnet:
     FLAGS.data_dir = '/opt/datasets/imgnet-data'
-    
+
 #CUDA_VISIBLE_DEVICES
 
 def get_checkpoint():
@@ -296,12 +296,12 @@ def ssd_model_fn(features, labels, mode, params):
         if FLAGS.low_precision:
             backbone = ssd_net_low.VGG16Backbone(params['data_format'])
             feature_layers = backbone.forward(features, feature_scale=FLAGS.feature_scale, training=(mode == tf.estimator.ModeKeys.TRAIN))
-			
+
             location_pred, cls_pred = ssd_net_low.multibox_head(feature_layers, params['num_classes'], all_num_anchors_depth, data_format=params['data_format'])
         else:
             backbone = ssd_net_high.VGG16Backbone(params['data_format'])
             feature_layers = backbone.forward(features, feature_scale=FLAGS.feature_scale, training=(mode == tf.estimator.ModeKeys.TRAIN))
-     
+
             location_pred, cls_pred = ssd_net_high.multibox_head(feature_layers, params['num_classes'], all_num_anchors_depth, data_format=params['data_format'])
 
         if params['data_format'] == 'channels_first':

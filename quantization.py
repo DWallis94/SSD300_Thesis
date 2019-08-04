@@ -40,6 +40,8 @@ def quantize_and_prune(x, k, quant_range, begin_pruning, end_pruning, pruning_fr
     # Perform quantization in quant region
     x_quant = step_size * tf.floor(x_quant / step_size + 0.5)
 
+    return x_quant
+
     # Perform pruning in pruning region
     # If within pruning window, prune
     # if (global_step >= begin_pruning) and (global_step < end_pruning) and (global_step%pruning_frequency == 0):
