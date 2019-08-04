@@ -31,7 +31,7 @@ def quantize_and_prune(x, k, quant_range, begin_pruning, end_pruning, pruning_fr
     max = quant_range[1]
     step_size = (max - min) / 2**k
 
-    x_quant = min + step_size * tf.floor(x / step_size + 0.5)
+    x_quant = min + step_size * tf.floor((x - min) / step_size + 0.5)
     x_pruned = tf.where(tf.logical_and(tf.greater_equal(x, min), tf.less_equal(x, max)), x, tf.zeros(shape=tf.shape(x)))
 
     cond_A = tf.reduce_all(tf.logical_and(tf.logical_and(tf.reduce_all(tf.greater_equal(global_step, begin_pruning)), tf.reduce_all(tf.less(
@@ -40,7 +40,7 @@ def quantize_and_prune(x, k, quant_range, begin_pruning, end_pruning, pruning_fr
     cond_B = tf.reduce_all(tf.greater_equal(global_step, end_pruning))
 
     stochastic_round_vect = np.vectorize(stochastic_round)
-    def prune_stochastic(x): return tf.py_func(
+    def prune_stochastic(x): return tf.py_function(
         stochastic_round_vect, [x], tf.float32)
 
     def prune_absolute(x): return tf.zeros(shape=tf.shape(x))
