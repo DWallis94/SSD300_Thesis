@@ -23,34 +23,41 @@ def stochastic_round(x):
 
 
 def quantize_and_prune(x, k, quant_range, begin_pruning, end_pruning, pruning_frequency):
-    global_step = tf.train.get_global_step()
-    begin_pruning = tf.constant(begin_pruning, dtype=tf.int64)
-    end_pruning = tf.constant(end_pruning, dtype=tf.int64)
-    pruning_frequency = tf.constant(pruning_frequency, dtype=tf.int64)
+    global_step = tf.cast(tf.train.get_global_step(), tf.int32)
+    begin_pruning = tf.constant(begin_pruning, dtype=tf.int32)
+    end_pruning = tf.constant(end_pruning, dtype=tf.int32)
+    pruning_frequency = tf.constant(pruning_frequency, dtype=tf.int32)
 
     min = quant_range[0]
     max = quant_range[1]
     step_size = (max - min) / 2**k
-    ## Define quant region, zero elsewhere
-    x_quant = tf.where(tf.logical_and(tf.greater_equal(x, min), tf.less_equal(x, max)), x, tf.zeros(shape=tf.shape(x)))
-    x_pruned = tf.where(tf.logical_or(tf.less(x, min), tf.greater(x, max)), x, tf.zeros(shape=tf.shape(x)))
+    # Define quant region, zero elsewhere
+    x_quant = tf.where(tf.logical_and(tf.greater_equal(
+        x, min), tf.less_equal(x, max)), x, tf.zeros(shape=tf.shape(x)))
+    x_pruned = tf.where(tf.logical_or(tf.less(x, min), tf.greater(
+        x, max)), x, tf.zeros(shape=tf.shape(x)))
 
-    ## Perform quantization in quant region
-    x_quant = step_size * (tf.floor(x_quant / step_size) + .5)
+    # Perform quantization in quant region
+    x_quant = step_size * tf.floor(x_quant / step_size + 0.5)
 
-    ## Perform pruning in pruning region
+    # Perform pruning in pruning region
     # If within pruning window, prune
-    cond_A = tf.reduce_all(tf.logical_and(tf.logical_and(tf.reduce_all(tf.greater_equal(global_step, begin_pruning)), tf.reduce_all(tf.less(global_step, end_pruning))), tf.reduce_all(tf.equal(tf.mod(global_step, pruning_frequency), tf.zeros(shape=tf.shape(global_step), dtype=tf.int64)))))
+    # if (global_step >= begin_pruning) and (global_step < end_pruning) and (global_step%pruning_frequency == 0):
+    cond_A = tf.reduce_all(tf.logical_and(tf.logical_and(tf.reduce_all(tf.greater_equal(global_step, begin_pruning)), tf.reduce_all(tf.less(
+        global_step, end_pruning))), tf.reduce_all(tf.equal(tf.mod(global_step, pruning_frequency), tf.zeros(shape=tf.shape(global_step), dtype=tf.int32)))))
+    # if global_step >= end_pruning:
     cond_B = tf.reduce_all(tf.greater_equal(global_step, end_pruning))
 
     stochastic_round_vect = np.vectorize(stochastic_round)
-    def prune_stochastic(x): return tf.py_func(stochastic_round_vect, [x], tf.float32)
+    def prune_stochastic(x): return tf.py_func(
+        stochastic_round_vect, [x], tf.float32)
+
     def prune_absolute(x): return tf.zeros(shape=tf.shape(x))
     def dont_prune(x): return x
 
-    x_pruned = tf.cond(cond_A, lambda: prune_stochastic(x_pruned), lambda: tf.cond(cond_B, lambda: prune_absolute(x_pruned), lambda: dont_prune(x_pruned)))
-
-    ## x_pruned and x_quant do not overlap (by design). So add them to get the pruned and quantized output
+    x_pruned = tf.case(pred_fn_pairs=[(cond_A, lambda: prune_stochastic(
+        x_pruned)), (cond_B, lambda: prune_absolute(x_pruned))], default=lambda: dont_prune(x_pruned), exclusive=True)
+    # x_pruned and x_quant do not overlap (by design). So add them to get the pruned and quantized output
     return tf.add(x_pruned, x_quant)
 
 
@@ -70,7 +77,8 @@ def quantize_and_prune_weights(w, k, thresh, begin_pruning, end_pruning, pruning
 
 def quantize_and_prune_activations(a, k, thresh, begin_pruning, end_pruning, pruning_frequency):
     a_clipped = tf.clip_by_value(a, 0, 1)
-    a_quant = quantize_and_prune(a_clipped, k - 1, [abs(thresh), 1], begin_pruning, end_pruning, pruning_frequency)
+    a_quant = quantize_and_prune(
+        a_clipped, k - 1, [abs(thresh), 1], begin_pruning, end_pruning, pruning_frequency)
     return tf.reshape(stop_grad(a, a_quant), shape=tf.shape(a))
 
 
