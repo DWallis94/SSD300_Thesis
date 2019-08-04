@@ -21,7 +21,6 @@ def stochastic_round(x):
 # tf.where( in_our_region, tf.zeros(), tf.ones() ) returns a tensor whose elements come from A or B depending on the condition evaluation at each position
 # tf.py_func(np_func, inputs) converts a np function to a tensorflow operation
 
-
 def quantize_and_prune(x, k, quant_range, begin_pruning, end_pruning, pruning_frequency):
     global_step = tf.cast(tf.train.get_global_step(), tf.int32)
     begin_pruning = tf.constant(begin_pruning, dtype=tf.int32)
@@ -31,20 +30,10 @@ def quantize_and_prune(x, k, quant_range, begin_pruning, end_pruning, pruning_fr
     min = quant_range[0]
     max = quant_range[1]
     step_size = (max - min) / 2**k
-    # Define quant region, zero elsewhere
-    x_quant = tf.where(tf.logical_and(tf.greater_equal(
-        x, min), tf.less_equal(x, max)), x, tf.zeros(shape=tf.shape(x)))
-    x_pruned = tf.where(tf.logical_or(tf.less(x, min), tf.greater(
-        x, max)), x, tf.zeros(shape=tf.shape(x)))
 
-    # Perform quantization in quant region
-    x_quant = step_size * tf.floor(x_quant / step_size + 0.5)
+    x_quant = step_size * tf.floor(x / step_size + 0.5)
+    x_pruned = tf.where(tf.logical_and(tf.greater_equal(x, min), tf.less_equal(x, max)), x, tf.zeros(shape=tf.shape(x)))
 
-    return x_quant
-
-    # Perform pruning in pruning region
-    # If within pruning window, prune
-    # if (global_step >= begin_pruning) and (global_step < end_pruning) and (global_step%pruning_frequency == 0):
     cond_A = tf.reduce_all(tf.logical_and(tf.logical_and(tf.reduce_all(tf.greater_equal(global_step, begin_pruning)), tf.reduce_all(tf.less(
         global_step, end_pruning))), tf.reduce_all(tf.equal(tf.mod(global_step, pruning_frequency), tf.zeros(shape=tf.shape(global_step), dtype=tf.int32)))))
     # if global_step >= end_pruning:
@@ -59,8 +48,8 @@ def quantize_and_prune(x, k, quant_range, begin_pruning, end_pruning, pruning_fr
 
     x_pruned = tf.case(pred_fn_pairs=[(cond_A, lambda: prune_stochastic(
         x_pruned)), (cond_B, lambda: prune_absolute(x_pruned))], default=lambda: dont_prune(x_pruned), exclusive=True)
-    # x_pruned and x_quant do not overlap (by design). So add them to get the pruned and quantized output
-    return tf.add(x_pruned, x_quant)
+
+    return tf.where(tf.logical_and(tf.greater_equal(x, min), tf.less_equal(x, max)), x_quant, x_pruned)
 
 
 def stop_grad(real, quant):
@@ -73,7 +62,7 @@ def quantize_and_prune_weights(w, k, thresh, begin_pruning, end_pruning, pruning
         w_clipped, np.ceil((k - 1) / 2), [abs(thresh), 1], begin_pruning, end_pruning, pruning_frequency)
     w_quant_neg = quantize_and_prune(
         w_clipped, np.floor((k - 1) / 2), [-1, -abs(thresh)], begin_pruning, end_pruning, pruning_frequency)
-    w_quant = tf.add(w_quant_pos, w_quant_neg)
+    w_quant = tf.where(tf.greater_equal(w_clipped, 0), w_quant_pos, w_quant_neg)
     return tf.reshape(stop_grad(w, w_quant), shape=tf.shape(w))
 
 
