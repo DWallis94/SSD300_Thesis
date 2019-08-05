@@ -21,7 +21,51 @@ def stochastic_round(x):
 # tf.where( in_our_region, tf.zeros(), tf.ones() ) returns a tensor whose elements come from A or B depending on the condition evaluation at each position
 # tf.py_func(np_func, inputs) converts a np function to a tensorflow operation
 
-def quantize_and_prune(x, k, quant_range, begin_pruning, end_pruning, pruning_frequency):
+
+def quantize_and_prune_by_sparsity(x, k, target_sparsity, quant_range, begin_pruning, end_pruning, pruning_frequency):
+    global_step = tf.cast(tf.train.get_global_step(), tf.int32)
+    target_sparsity = tf.constant(target_sparsity, dtype=tf.float32)
+    begin_pruning = tf.constant(begin_pruning, dtype=tf.int32)
+    end_pruning = tf.constant(end_pruning, dtype=tf.int32)
+    pruning_frequency = tf.constant(pruning_frequency, dtype=tf.int32)
+
+    min = quant_range[0]
+    max = quant_range[1]
+    step_size = (max - min) / 2**k
+
+    # Calculate current tensor sparsity
+    sparsity = tf.nn.zero_fraction(x)
+
+    # For all values between min and max, quantize
+    x_quant = tf.where(tf.logical_and(tf.greater_equal(
+        x, min), tf.less_equal(x, max)), x, tf.zeros(shape=tf.shape(x)))
+    x_quant = min + step_size * (tf.floor((x_quant - min) / step_size) + 0.5)
+
+    # Conditions for pruning based on global step
+    cond_A = tf.reduce_all(tf.logical_and(tf.logical_and(tf.reduce_all(tf.greater_equal(global_step, begin_pruning)), tf.reduce_all(tf.less(
+        global_step, end_pruning))), tf.reduce_all(tf.equal(tf.mod(global_step, pruning_frequency), tf.zeros(shape=tf.shape(global_step), dtype=tf.int32)))))
+    cond_B = tf.reduce_all(tf.greater_equal(global_step, end_pruning))
+    cond_C = tf.less(sparsity, target_sparsity)
+
+    # Some function definitions needed for feeding to pruning tensor ops
+    stochastic_round_vect = np.vectorize(stochastic_round)
+    def prune_stochastic(x): return tf.py_func(
+        stochastic_round_vect, [x], tf.float32)
+
+    def prune_absolute(x): return tf.zeros(shape=tf.shape(x))
+    def dont_prune(x): return x
+
+    # For all values outside the [min, max] region, prune
+    x_pruned = tf.where(tf.logical_or(tf.less(x, min), tf.greater(
+        x, max)), x, tf.zeros(shape=tf.shape(x)))
+    x_pruned = tf.case(pred_fn_pairs=[(tf.logical_and(cond_A, cond_C), lambda: prune_stochastic(
+        x_pruned)), (tf.logical_and(cond_B, cond_C), lambda: prune_absolute(x_pruned))], default=lambda: dont_prune(x_pruned), exclusive=True)
+
+    # Return the combined tensor containing quantized and pruned regions as appropriate
+    return tf.where(tf.logical_and(tf.greater_equal(x, min), tf.less_equal(x, max)), x_quant, x_pruned)
+
+
+def quantize_and_prune_by_threshold(x, k, quant_range, begin_pruning, end_pruning, pruning_frequency):
     global_step = tf.cast(tf.train.get_global_step(), tf.int32)
     begin_pruning = tf.constant(begin_pruning, dtype=tf.int32)
     end_pruning = tf.constant(end_pruning, dtype=tf.int32)
@@ -32,7 +76,8 @@ def quantize_and_prune(x, k, quant_range, begin_pruning, end_pruning, pruning_fr
     step_size = (max - min) / 2**k
 
     # For all values between min and max, quantize
-    x_quant = tf.where(tf.logical_and(tf.greater_equal(x, min), tf.less_equal(x, max)), x, tf.zeros(shape=tf.shape(x)))
+    x_quant = tf.where(tf.logical_and(tf.greater_equal(
+        x, min), tf.less_equal(x, max)), x, tf.zeros(shape=tf.shape(x)))
     x_quant = min + step_size * (tf.floor((x_quant - min) / step_size) + 0.5)
 
     # Conditions for pruning based on global step
@@ -42,13 +87,15 @@ def quantize_and_prune(x, k, quant_range, begin_pruning, end_pruning, pruning_fr
 
     # Some function definitions needed for feeding to pruning tensor ops
     stochastic_round_vect = np.vectorize(stochastic_round)
-    def prune_stochastic(x): return tf.py_function(
+    def prune_stochastic(x): return tf.py_func(
         stochastic_round_vect, [x], tf.float32)
+
     def prune_absolute(x): return tf.zeros(shape=tf.shape(x))
     def dont_prune(x): return x
 
     # For all values outside the [min, max] region, prune
-    x_pruned = tf.where(tf.logical_or(tf.less(x, min), tf.greater(x, max)), x, tf.zeros(shape=tf.shape(x)))
+    x_pruned = tf.where(tf.logical_or(tf.less(x, min), tf.greater(
+        x, max)), x, tf.zeros(shape=tf.shape(x)))
     x_pruned = tf.case(pred_fn_pairs=[(cond_A, lambda: prune_stochastic(
         x_pruned)), (cond_B, lambda: prune_absolute(x_pruned))], default=lambda: dont_prune(x_pruned), exclusive=True)
 
@@ -60,20 +107,21 @@ def stop_grad(real, quant):
     return real + tf.stop_gradient(quant - real)
 
 
-def quantize_and_prune_weights(w, k, thresh, begin_pruning, end_pruning, pruning_frequency):
+def quantize_and_prune_weights(w, k, thresh, begin_pruning, end_pruning, pruning_frequency, target_sparsity):
     w_clipped = tf.clip_by_value(w, -1, 1)
-    w_quant_pos = quantize_and_prune(
-        w_clipped, np.ceil((k - 1) / 2), [abs(thresh), 1], begin_pruning, end_pruning, pruning_frequency)
-    w_quant_neg = quantize_and_prune(
-        w_clipped, np.floor((k - 1) / 2), [-1, -abs(thresh)], begin_pruning, end_pruning, pruning_frequency)
-    w_quant = tf.where(tf.greater_equal(w_clipped, 0), w_quant_pos, w_quant_neg)
+    w_quant_pos = quantize_and_prune_by_sparsity(
+        w_clipped, np.ceil((k - 1) / 2), target_sparsity, [abs(thresh), 1], begin_pruning, end_pruning, pruning_frequency)
+    w_quant_neg = quantize_and_prune_by_sparsity(
+        w_clipped, np.floor((k - 1) / 2), target_sparsity, [-1, -abs(thresh)], begin_pruning, end_pruning, pruning_frequency)
+    w_quant = tf.where(tf.greater_equal(w_clipped, 0),
+                       w_quant_pos, w_quant_neg)
     return tf.reshape(stop_grad(w, w_quant), shape=tf.shape(w))
 
 
-def quantize_and_prune_activations(a, k, thresh, begin_pruning, end_pruning, pruning_frequency):
+def quantize_and_prune_activations(a, k, thresh, begin_pruning, end_pruning, pruning_frequency, target_sparsity):
     a_clipped = tf.clip_by_value(a, 0, 1)
-    a_quant = quantize_and_prune(
-        a_clipped, k - 1, [abs(thresh), 1], begin_pruning, end_pruning, pruning_frequency)
+    a_quant = quantize_and_prune_by_sparsity(
+        a_clipped, k - 1, target_sparsity, [abs(thresh), 1], begin_pruning, end_pruning, pruning_frequency)
     return tf.reshape(stop_grad(a, a_quant), shape=tf.shape(a))
 
 

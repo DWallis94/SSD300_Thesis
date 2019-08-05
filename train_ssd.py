@@ -160,6 +160,9 @@ tf.app.flags.DEFINE_integer(
 tf.app.flags.DEFINE_integer(
     'pruning_frequency', 1000,
     'Specifies how often to prune the network.')
+tf.app.flags.DEFINE_float(
+    'target_sparsity', 0.5,
+    'Specify the target sparsity for pruning such that pruning will stop once the weight and activation-sparsity reaches this value.')
 
 
 FLAGS = tf.app.flags.FLAGS
@@ -336,7 +339,7 @@ def ssd_model_fn(features, labels, mode, params):
         if FLAGS.quant_w != 32 or FLAGS.quant_a != 32 or FLAGS.threshold_w != 0 or FLAGS.threshold_a != 0:
             backbone = ssd_net_low.VGG16Backbone(params['data_format'])
             feature_layers = backbone.forward(features, quant_w=FLAGS.quant_w, quant_a=FLAGS.quant_a, threshold_w=FLAGS.threshold_w, threshold_a=FLAGS.threshold_a,
-                                              begin_pruning=FLAGS.start_pruning_at_step, end_pruning=FLAGS.end_pruning_at_step, pruning_frequency=FLAGS.pruning_frequency, training=(mode == tf.estimator.ModeKeys.TRAIN))
+                                              begin_pruning=FLAGS.start_pruning_at_step, end_pruning=FLAGS.end_pruning_at_step, pruning_frequency=FLAGS.pruning_frequency, target_sparsity=FLAGS.target_sparsity, training=(mode == tf.estimator.ModeKeys.TRAIN))
             # print(feature_layers)
             location_pred, cls_pred = ssd_net_low.multibox_head(
                 feature_layers, params['num_classes'], all_num_anchors_depth, data_format=params['data_format'])
