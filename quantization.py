@@ -31,24 +31,28 @@ def quantize_and_prune(x, k, quant_range, begin_pruning, end_pruning, pruning_fr
     max = quant_range[1]
     step_size = (max - min) / 2**k
 
-    x_quant = min + step_size * tf.floor((x - min) / step_size + 0.5)
-    x_pruned = tf.where(tf.logical_and(tf.greater_equal(x, min), tf.less_equal(x, max)), x, tf.zeros(shape=tf.shape(x)))
+    # For all values between min and max, quantize
+    x_quant = tf.where(tf.logical_and(tf.greater_equal(x, min), tf.less_equal(x, max)), x, tf.zeros(shape=tf.shape(x)))
+    x_quant = min + step_size * (tf.floor((x_quant - min) / step_size) + 0.5)
 
+    # Conditions for pruning based on global step
     cond_A = tf.reduce_all(tf.logical_and(tf.logical_and(tf.reduce_all(tf.greater_equal(global_step, begin_pruning)), tf.reduce_all(tf.less(
         global_step, end_pruning))), tf.reduce_all(tf.equal(tf.mod(global_step, pruning_frequency), tf.zeros(shape=tf.shape(global_step), dtype=tf.int32)))))
-    # if global_step >= end_pruning:
     cond_B = tf.reduce_all(tf.greater_equal(global_step, end_pruning))
 
+    # Some function definitions needed for feeding to pruning tensor ops
     stochastic_round_vect = np.vectorize(stochastic_round)
     def prune_stochastic(x): return tf.py_function(
         stochastic_round_vect, [x], tf.float32)
-
     def prune_absolute(x): return tf.zeros(shape=tf.shape(x))
     def dont_prune(x): return x
 
+    # For all values outside the [min, max] region, prune
+    x_pruned = tf.where(tf.logical_or(tf.less(x, min), tf.greater(x, max)), x, tf.zeros(shape=tf.shape(x)))
     x_pruned = tf.case(pred_fn_pairs=[(cond_A, lambda: prune_stochastic(
         x_pruned)), (cond_B, lambda: prune_absolute(x_pruned))], default=lambda: dont_prune(x_pruned), exclusive=True)
 
+    # Return the combined tensor containing quantized and pruned regions as appropriate
     return tf.where(tf.logical_and(tf.greater_equal(x, min), tf.less_equal(x, max)), x_quant, x_pruned)
 
 
