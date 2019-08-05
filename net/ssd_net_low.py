@@ -22,6 +22,7 @@ import quantization as q
 _BATCH_NORM_DECAY = 0.9
 _BATCH_NORM_EPSILON = 1e-5
 _USE_FUSED_BN = True
+_DROPOUT_RATE = 0.5
 
 # vgg_16/conv2/conv2_1/biases
 # vgg_16/conv4/conv4_3/biases
@@ -95,27 +96,27 @@ class VGG16Backbone(object):
             x_inv_norm = tf.rsqrt(tf.maximum(square_sum, 1e-10))
             return tf.multiply(x, x_inv_norm, name=name)
 
-    def forward(self, inputs, training=False):
+    def forward(self, inputs, quant_w=32, quant_a=32, threshold_w=0, threshold_a=0, begin_pruning=0, end_pruning=0, pruning_frequency=0, training=False):
         # inputs should in BGR
         feature_layers = []
         # forward vgg layers
         with tf.variable_scope('conv1') as scope:
             inputs = self.conv_block(inputs, 64, 3, (1, 1, 1, 1), 'conv1_1')
-            inputs = self.conv_block_low(inputs, 64, 3, (1, 1, 1, 1), 'conv1_2')
+            inputs = self.conv_block_low(inputs, 64, 3, (1, 1, 1, 1), 'conv1_2', quant_w=quant_w, quant_a=quant_a, threshold_w=threshold_w, threshold_a=threshold_a, begin_pruning=begin_pruning, end_pruning=end_pruning, pruning_frequency=pruning_frequency)
         inputs = self._pool1.apply(inputs)
         with tf.variable_scope('conv2') as scope:
-            inputs = self.conv_block_low(inputs, 128, 3, (1, 1, 1, 1), 'conv2_1')
-            inputs = self.conv_block_low(inputs, 128, 3, (1, 1, 1, 1), 'conv2_2')
+            inputs = self.conv_block_low(inputs, 128, 3, (1, 1, 1, 1), 'conv2_1', quant_w=quant_w, quant_a=quant_a, threshold_w=threshold_w, threshold_a=threshold_a, begin_pruning=begin_pruning, end_pruning=end_pruning, pruning_frequency=pruning_frequency)
+            inputs = self.conv_block_low(inputs, 128, 3, (1, 1, 1, 1), 'conv2_2', quant_w=quant_w, quant_a=quant_a, threshold_w=threshold_w, threshold_a=threshold_a, begin_pruning=begin_pruning, end_pruning=end_pruning, pruning_frequency=pruning_frequency)
         inputs = self._pool2.apply(inputs)
         with tf.variable_scope('conv3') as scope:
-            inputs = self.conv_block_low(inputs, 256, 3, (1, 1, 1, 1), 'conv3_1')
-            inputs = self.conv_block_low(inputs, 256, 3, (1, 1, 1, 1), 'conv3_2')
-            inputs = self.conv_block_low(inputs, 256, 3, (1, 1, 1, 1), 'conv3_3')
+            inputs = self.conv_block_low(inputs, 256, 3, (1, 1, 1, 1), 'conv3_1', quant_w=quant_w, quant_a=quant_a, threshold_w=threshold_w, threshold_a=threshold_a, begin_pruning=begin_pruning, end_pruning=end_pruning, pruning_frequency=pruning_frequency)
+            inputs = self.conv_block_low(inputs, 256, 3, (1, 1, 1, 1), 'conv3_2', quant_w=quant_w, quant_a=quant_a, threshold_w=threshold_w, threshold_a=threshold_a, begin_pruning=begin_pruning, end_pruning=end_pruning, pruning_frequency=pruning_frequency)
+            inputs = self.conv_block_low(inputs, 256, 3, (1, 1, 1, 1), 'conv3_3', quant_w=quant_w, quant_a=quant_a, threshold_w=threshold_w, threshold_a=threshold_a, begin_pruning=begin_pruning, end_pruning=end_pruning, pruning_frequency=pruning_frequency)
         inputs = self._pool3.apply(inputs)
         with tf.variable_scope('conv4') as scope:
-            inputs = self.conv_block_low(inputs, 512, 3, (1, 1, 1, 1), 'conv4_1')
-            inputs = self.conv_block_low(inputs, 512, 3, (1, 1, 1, 1), 'conv4_2')
-            inputs = self.conv_block_low(inputs, 512, 3, (1, 1, 1, 1), 'conv4_3')
+            inputs = self.conv_block_low(inputs, 512, 3, (1, 1, 1, 1), 'conv4_1', quant_w=quant_w, quant_a=quant_a, threshold_w=threshold_w, threshold_a=threshold_a, begin_pruning=begin_pruning, end_pruning=end_pruning, pruning_frequency=pruning_frequency)
+            inputs = self.conv_block_low(inputs, 512, 3, (1, 1, 1, 1), 'conv4_2', quant_w=quant_w, quant_a=quant_a, threshold_w=threshold_w, threshold_a=threshold_a, begin_pruning=begin_pruning, end_pruning=end_pruning, pruning_frequency=pruning_frequency)
+            inputs = self.conv_block_low(inputs, 512, 3, (1, 1, 1, 1), 'conv4_3', quant_w=quant_w, quant_a=quant_a, threshold_w=threshold_w, threshold_a=threshold_a, begin_pruning=begin_pruning, end_pruning=end_pruning, pruning_frequency=pruning_frequency)
         # conv4_3
         with tf.variable_scope('conv4_3_scale') as scope:
             weight_scale = tf.Variable([20.] * 512, trainable=training, name='weights')
@@ -128,90 +129,100 @@ class VGG16Backbone(object):
                                 )
         inputs = self._pool4.apply(inputs)
         with tf.variable_scope('conv5') as scope:
-            inputs = self.conv_block_low(inputs, 512, 3, (1, 1, 1, 1), 'conv5_1')
-            inputs = self.conv_block_low(inputs, 512, 3, (1, 1, 1, 1), 'conv5_2')
-            inputs = self.conv_block_low(inputs, 512, 3, (1, 1, 1, 1), 'conv5_3')
+            inputs = self.conv_block_low(inputs, 512, 3, (1, 1, 1, 1), 'conv5_1', quant_w=quant_w, quant_a=quant_a, threshold_w=threshold_w, threshold_a=threshold_a, begin_pruning=begin_pruning, end_pruning=end_pruning, pruning_frequency=pruning_frequency)
+            inputs = self.conv_block_low(inputs, 512, 3, (1, 1, 1, 1), 'conv5_2', quant_w=quant_w, quant_a=quant_a, threshold_w=threshold_w, threshold_a=threshold_a, begin_pruning=begin_pruning, end_pruning=end_pruning, pruning_frequency=pruning_frequency)
+            inputs = self.conv_block_low(inputs, 512, 3, (1, 1, 1, 1), 'conv5_3', quant_w=quant_w, quant_a=quant_a, threshold_w=threshold_w, threshold_a=threshold_a, begin_pruning=begin_pruning, end_pruning=end_pruning, pruning_frequency=pruning_frequency)
         inputs = self._pool5.apply(inputs)
         # forward fc layers
         dilation = [1, 6, 6, 6]
         dilation[self._bn_axis] = 1
-        inputs = self.conv_block_low(inputs, filters=1024, kernel_size=3, strides=[1,1,1,1], padding='SAME', dilations=dilation,
-                                activation=tf.nn.relu, use_bias=True, name='fc6', reuse=None)
-        inputs = self.conv_block_low(inputs, filters=1024, kernel_size=1, strides=[1,1,1,1], padding='SAME',
-                                activation=tf.nn.relu, use_bias=True, name='fc7', reuse=None)
+        inputs = self.conv_block_low(inputs, filters=1024, threshold_w=threshold_w, threshold_a=threshold_a, kernel_size=3, strides=[1,1,1,1], padding='SAME', dilations=dilation,
+                                activation=tf.nn.relu, batch_norm=False, use_bias=True, quant_w=quant_w, quant_a=quant_a, name='fc6', reuse=None, begin_pruning=begin_pruning, end_pruning=end_pruning, pruning_frequency=pruning_frequency)
+        inputs = self.conv_block_low(inputs, filters=1024, threshold_w=threshold_w, threshold_a=threshold_a, kernel_size=1, strides=[1,1,1,1], padding='SAME',
+                                activation=tf.nn.relu, batch_norm=False, use_bias=True, quant_w=quant_w, quant_a=quant_a, name='fc7', reuse=None, begin_pruning=begin_pruning, end_pruning=end_pruning, pruning_frequency=pruning_frequency)
         # fc7
         feature_layers.append(inputs)
-        
+
         # forward ssd layers
         with tf.variable_scope('additional_layers') as scope:
             with tf.variable_scope('conv8') as scope:
                 stride = [1, 2, 2, 2]
                 stride[self._bn_axis] = 1
-                inputs = self.conv_block_low(inputs=inputs, filters=256, kernel_size=1, strides=(1, 1, 1, 1), use_bias=True, name='conv8_1')
-                inputs = self.conv_block_low(inputs=inputs, filters=512, kernel_size=3, strides=stride, use_bias=True, name='conv8_2')
+                inputs = self.conv_block_low(inputs=inputs, filters=256, threshold_w=threshold_w, threshold_a=threshold_a, kernel_size=1, strides=(1, 1, 1, 1), use_bias=True, name='conv8_1', begin_pruning=begin_pruning, end_pruning=end_pruning, pruning_frequency=pruning_frequency)
+                inputs = self.conv_block_low(inputs=inputs, filters=512, threshold_w=threshold_w, threshold_a=threshold_a, kernel_size=3, strides=stride, use_bias=True, quant_w=quant_w, quant_a=quant_a, name='conv8_2', begin_pruning=begin_pruning, end_pruning=end_pruning, pruning_frequency=pruning_frequency)
             # conv8
             feature_layers.append(inputs)
             with tf.variable_scope('conv9') as scope:
                 stride = [1, 2, 2, 2]
                 stride[self._bn_axis] = 1
-                inputs = self.conv_block_low(inputs=inputs, filters=128, kernel_size=1, strides=(1, 1, 1, 1), use_bias=True, name='conv9_1')
-                inputs = self.conv_block_low(inputs=inputs, filters=256, kernel_size=3, strides=stride, use_bias=True, name='conv9_2')
+                inputs = self.conv_block_low(inputs=inputs, filters=128, threshold_w=threshold_w, threshold_a=threshold_a, kernel_size=1, strides=(1, 1, 1, 1), use_bias=True, name='conv9_1', begin_pruning=begin_pruning, end_pruning=end_pruning, pruning_frequency=pruning_frequency)
+                inputs = self.conv_block_low(inputs=inputs, filters=256, threshold_w=threshold_w, threshold_a=threshold_a, kernel_size=3, strides=stride, use_bias=True, quant_w=quant_w, quant_a=quant_a, name='conv9_2', begin_pruning=begin_pruning, end_pruning=end_pruning, pruning_frequency=pruning_frequency)
             # conv9
             feature_layers.append(inputs)
             with tf.variable_scope('conv10') as scope:
-                inputs = self.conv_block_low(inputs=inputs, filters=128, kernel_size=1, strides=(1, 1, 1, 1), use_bias=True, name='conv10_1', padding='VALID')
-                inputs = self.conv_block_low(inputs=inputs, filters=256, kernel_size=3, strides=(1, 1, 1, 1), use_bias=True, name='conv10_2', padding='VALID')
+                inputs = self.conv_block_low(inputs=inputs, filters=128, threshold_w=threshold_w, threshold_a=threshold_a, kernel_size=1, strides=(1, 1, 1, 1), use_bias=True, quant_w=quant_w, quant_a=quant_a, name='conv10_1', padding='VALID', begin_pruning=begin_pruning, end_pruning=end_pruning, pruning_frequency=pruning_frequency)
+                inputs = self.conv_block_low(inputs=inputs, filters=256, threshold_w=threshold_w, threshold_a=threshold_a, kernel_size=3, strides=(1, 1, 1, 1), use_bias=True, quant_w=quant_w, quant_a=quant_a, name='conv10_2', padding='VALID', begin_pruning=begin_pruning, end_pruning=end_pruning, pruning_frequency=pruning_frequency)
             # conv10
             feature_layers.append(inputs)
             with tf.variable_scope('conv11') as scope:
-                inputs = self.conv_block_low(inputs=inputs, filters=128, kernel_size=1, strides=(1, 1, 1, 1), use_bias=True, name='conv11_1', padding='VALID')
-                inputs = self.conv_block_low(inputs=inputs, filters=256, kernel_size=3, strides=(1, 1, 1, 1), use_bias=True, name='conv11_2', padding='VALID')
+                inputs = self.conv_block_low(inputs=inputs, filters=128, threshold_w=threshold_w, threshold_a=threshold_a, kernel_size=1, strides=(1, 1, 1, 1), use_bias=True, quant_w=quant_w, quant_a=quant_a, name='conv11_1', padding='VALID', begin_pruning=begin_pruning, end_pruning=end_pruning, pruning_frequency=pruning_frequency)
+                inputs = self.conv_block_low(inputs=inputs, filters=256, threshold_w=threshold_w, threshold_a=threshold_a, kernel_size=3, strides=(1, 1, 1, 1), use_bias=True, quant_w=quant_w, quant_a=quant_a, name='conv11_2', padding='VALID', begin_pruning=begin_pruning, end_pruning=end_pruning, pruning_frequency=pruning_frequency)
             # conv11
             feature_layers.append(inputs)
 
         return feature_layers
 
 ## A block which generates the low precision weights and convolves them with the input
-    def conv_block_low(self, inputs, filters, kernel_size, strides, name, padding='SAME', dilations=[1, 1, 1, 1],
-                    activation=tf.nn.relu, use_bias=True, reuse=None):
+    def conv_block_low(self, inputs, filters, kernel_size, strides, name, quant_w=32, quant_a=32, threshold_w=0, threshold_a=0, padding='SAME', dilations=[1, 1, 1, 1],
+                    activation=tf.nn.relu, batch_norm=True, use_bias=True, reuse=None, begin_pruning=0, end_pruning=0, pruning_frequency=0):
         with tf.variable_scope(name):
             data_format = "NHWC" if self._data_format == 'channels_last' else "NCHW"
             filter_shape = [ kernel_size, kernel_size, inputs.shape[self._bn_axis], filters ]
             conv_filter = tf.get_variable( 'kernel', filter_shape )
             tf.summary.histogram( "weights_r", conv_filter )
             with tf.variable_scope("quantize_weights"):
-                weights_q = q.quantize_weights(conv_filter, 8) #quantize the weights
+                weights_q = q.quantize_and_prune_weights( conv_filter, quant_w, threshold_w, begin_pruning, end_pruning, pruning_frequency ) #quantize the weights
             tf.summary.histogram( "weights_q", weights_q )
             bias = tf.get_variable('bias', filters)
             conv = tf.nn.conv2d(input=inputs,filter=weights_q,strides=strides,padding=padding,use_cudnn_on_gpu=True,
                                 data_format=data_format,dilations=dilations,name=name)
             tf.summary.histogram( "act", conv )
             conv = tf.nn.bias_add(conv, bias, data_format=data_format)
-            conv = tf.layers.batch_normalization(conv,axis=self._bn_axis, momentum=_BATCH_NORM_DECAY, epsilon=_BATCH_NORM_EPSILON, fused=_USE_FUSED_BN,
+            if batch_norm:
+                conv = tf.layers.batch_normalization(conv,axis=self._bn_axis, momentum=_BATCH_NORM_DECAY, epsilon=_BATCH_NORM_EPSILON, fused=_USE_FUSED_BN,
                         reuse=None)
+            else:
+                conv = tf.layers.dropout(conv, rate=_DROPOUT_RATE)
             tf.summary.histogram( "act_bn", conv )
             #conv = tf.nn.relu(conv)
-            #with tf.variable_scope("quantize_activations"):
-            #    conv = q.quantize_activations( conv, 8 )
-            #tf.summary.histogram( "act_bn_q", conv )
+            with tf.variable_scope("quantize_activations"):
+                conv = q.quantize_and_prune_activations( conv, quant_a, threshold_a, begin_pruning, end_pruning, pruning_frequency )
+            tf.summary.histogram( "act_bn_q", conv )
             conv = tf.nn.relu(conv)
             tf.summary.histogram( "act_bn_q_r", conv )
             return conv
 
     def conv_block(self, inputs, filters, kernel_size, strides, name, padding='SAME', dilations=[1, 1, 1, 1],
-                    activation=tf.nn.relu, use_bias=True, reuse=None):
+                    activation=tf.nn.relu, batch_norm=True, use_bias=True, reuse=None):
         with tf.variable_scope(name):
             data_format = "NHWC" if self._data_format == 'channels_last' else "NCHW"
             filter_shape = [ kernel_size, kernel_size, inputs.shape[self._bn_axis], filters ]
             conv_filter = tf.get_variable( 'kernel', filter_shape )
+            # Stephen: either add a mask here, apply it in each conv, and after training manually examine model performance before updating this mask and retraining
+            # OR: shift quantization thresholds so more values get put in the '0' bin, resulting in a greater sparsity
+            #conv_mask = tf.get_variable( 'mask', filter_shape, initializer = tf.ones(filter_shape))
+            #conv_filter = conv_filter * conv_mask
             tf.summary.histogram( "weights_r", conv_filter )
             bias = tf.get_variable('bias', filters)
             conv = tf.nn.conv2d(input=inputs,filter=conv_filter,strides=strides,padding=padding,use_cudnn_on_gpu=True,
                                 data_format=data_format,dilations=dilations,name=name)
             tf.summary.histogram( "act", conv )
             conv = tf.nn.bias_add(conv, bias, data_format=data_format)
-            conv = tf.layers.batch_normalization(conv,axis=self._bn_axis, momentum=_BATCH_NORM_DECAY, epsilon=_BATCH_NORM_EPSILON, fused=_USE_FUSED_BN,
+            if batch_norm:
+                conv = tf.layers.batch_normalization(conv,axis=self._bn_axis, momentum=_BATCH_NORM_DECAY, epsilon=_BATCH_NORM_EPSILON, fused=_USE_FUSED_BN,
                         reuse=None)
+            else:
+                conv = tf.layers.dropout(conv, rate=_DROPOUT_RATE)
             tf.summary.histogram( "act_bn", conv )
             conv = tf.nn.relu(conv)
             tf.summary.histogram( "act_bn_q_r", conv )
@@ -271,5 +282,3 @@ def multibox_head(feature_layers, num_classes, num_anchors_depth_per_layer, data
                         bias_initializer=tf.zeros_initializer()))
 
         return loc_preds, cls_preds
-
-

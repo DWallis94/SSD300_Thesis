@@ -23,7 +23,8 @@ import tensorflow as tf
 from scipy.misc import imread, imsave, imshow, imresize
 import numpy as np
 
-from net import ssd_net
+from net import ssd_net_high
+from net import ssd_net_low
 
 from dataset import dataset_common
 from preprocessing import ssd_preprocessing
@@ -32,13 +33,13 @@ from utility import draw_toolbox
 
 # scaffold related configuration
 tf.app.flags.DEFINE_integer(
-    'num_classes', 21, 'Number of classes to use in the dataset.')
+    'num_classes', 2, 'Number of classes to use in the dataset.')
 # model related configuration
 tf.app.flags.DEFINE_integer(
     'train_image_size', 300,
     'The size of the input image for the model to use.')
 tf.app.flags.DEFINE_string(
-    'data_format', 'channels_last', # 'channels_first' or 'channels_last'
+    'data_format', 'channels_first', # 'channels_first' or 'channels_last'
     'A flag to override the data format used in the model. channels_first '
     'provides a performance boost on GPU but is not always compatible '
     'with CPU. If left unspecified, the data format will be chosen '
@@ -60,6 +61,15 @@ tf.app.flags.DEFINE_string(
 tf.app.flags.DEFINE_string(
     'model_scope', 'ssd300',
     'Model scope name used to replace the name_scope in checkpoint.')
+tf.app.flags.DEFINE_boolean(
+    'low_precision', False,
+	'Does the current trained model use low precision?')
+tf.app.flags.DEFINE_float(
+    'add_noise', None,
+    'Whether to add gaussian noise to the imageset prior to training.')
+tf.app.flags.DEFINE_float(
+    'feature_scale', 1.0,
+    'Factor by which to scale the number of convolutional kernel feature layers.')
 
 FLAGS = tf.app.flags.FLAGS
 #CUDA_VISIBLE_DEVICES
@@ -151,7 +161,7 @@ def main(_):
         image_input = tf.placeholder(tf.uint8, shape=(None, None, 3))
         shape_input = tf.placeholder(tf.int32, shape=(2,))
 
-        features = ssd_preprocessing.preprocess_for_eval(image_input, out_shape, data_format=FLAGS.data_format, output_rgb=False)
+        features = ssd_preprocessing.preprocess_for_eval(image_input, out_shape, add_noise=FLAGS.add_noise, data_format=FLAGS.data_format, output_rgb=False)
         features = tf.expand_dims(features, axis=0)
 
         anchor_creator = anchor_manipulator.AnchorCreator(out_shape,
@@ -171,9 +181,14 @@ def main(_):
         decode_fn = lambda pred : anchor_encoder_decoder.ext_decode_all_anchors(pred, all_anchors, all_num_anchors_depth, all_num_anchors_spatial)
 
         with tf.variable_scope(FLAGS.model_scope, default_name=None, values=[features], reuse=tf.AUTO_REUSE):
-            backbone = ssd_net.VGG16Backbone(FLAGS.data_format)
-            feature_layers = backbone.forward(features, training=False)
-            location_pred, cls_pred = ssd_net.multibox_head(feature_layers, FLAGS.num_classes, all_num_anchors_depth, data_format=FLAGS.data_format)
+            if FLAGS.low_precision:
+                backbone = ssd_net_low.VGG16Backbone(FLAGS.data_format)
+                feature_layers = backbone.forward(features, feature_scale=FLAGS.feature_scale, training=False)
+                location_pred, cls_pred = ssd_net_low.multibox_head(feature_layers, FLAGS.num_classes, all_num_anchors_depth, data_format=FLAGS.data_format)
+            else:
+                backbone = ssd_net_high.VGG16Backbone(FLAGS.data_format)
+                feature_layers = backbone.forward(features, feature_scale=FLAGS.feature_scale, training=False)
+                location_pred, cls_pred = ssd_net_high.multibox_head(feature_layers, FLAGS.num_classes, all_num_anchors_depth, data_format=FLAGS.data_format)
             if FLAGS.data_format == 'channels_first':
                 cls_pred = [tf.transpose(pred, [0, 2, 3, 1]) for pred in cls_pred]
                 location_pred = [tf.transpose(pred, [0, 2, 3, 1]) for pred in location_pred]

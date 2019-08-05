@@ -34,7 +34,7 @@ VOC2007TEST
     ...
     ImageSets
 '''
-dataset_path = 'G:/Danny University Stuff/Thesis/VOCROOT/VOC2007TEST/'
+dataset_path = '../VOCROOT_backup/VOC2007TEST/'
 #dataset_path = '/media/rs/7A0EE8880EE83EAF/Detections/PASCAL/VOC/VOC2007TEST'
 # change above path according to your system settings
 pred_path = './logs/predict'
@@ -50,7 +50,10 @@ def parse_rec(filename):
     objects = []
     for obj in tree.findall('object'):
         obj_struct = {}
-        obj_struct['name'] = obj.find('name').text
+        if obj.find('name').text not in dataset_common.VOC_LABELS_reduced:
+            obj_struct['name'] = 'background'
+        else:
+            obj_struct['name'] = obj.find('name').text
         obj_struct['pose'] = obj.find('pose').text
         obj_struct['truncated'] = int(obj.find('truncated').text)
         obj_struct['difficult'] = int(obj.find('difficult').text)
@@ -71,8 +74,8 @@ def do_python_eval(use_07=True):
         print('VOC07 metric? ' + ('Yes' if use_07_metric else 'No'))
         if not os.path.isdir(output_path):
             os.mkdir(output_path)
-        for cls_name, cls_pair in dataset_common.VOC_LABELS.items():
-            if 'none' in cls_name:
+        for cls_name, cls_pair in dataset_common.VOC_LABELS_reduced.items():
+            if cls_name in ['none', 'background']:
                 continue
             cls_id = cls_pair[0]
             filename = os.path.join(pred_path, pred_file.format(cls_id))

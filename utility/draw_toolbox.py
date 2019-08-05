@@ -19,7 +19,7 @@ from dataset import dataset_common
 
 def gain_translate_table():
     label2name_table = {}
-    for class_name, labels_pair in dataset_common.VOC_LABELS.items():
+    for class_name, labels_pair in dataset_common.VOC_LABELS_reduced.items():
         label2name_table[labels_pair[0]] = class_name
     return label2name_table
 

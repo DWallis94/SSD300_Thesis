@@ -39,6 +39,8 @@ tf.app.flags.DEFINE_integer(
 tf.app.flags.DEFINE_integer(
     'train_image_size', 300,
     'The size of the input image for the model to use.')
+tf.app.flags.DEFINE_float(
+    'gpu_memory_fraction', 1., 'GPU memory fraction to use.')
 tf.app.flags.DEFINE_string(
     'data_format', 'channels_first', # 'channels_first' or 'channels_last'
     'A flag to override the data format used in the model. channels_first '
@@ -64,7 +66,7 @@ tf.app.flags.DEFINE_string(
     'Model scope name used to replace the name_scope in checkpoint.')
 ##Input data folder
 tf.app.flags.DEFINE_string(
-    'input_data', '../VOCROOT_reduced/real_dataset/',
+    'input_data', '../VOCROOT_reduced/VOC2012TEST/JPEGImages/',
     'Specify the location of the input dataset to apply the trained network.')
 tf.app.flags.DEFINE_string(
     'output_data', './output/',
@@ -72,6 +74,9 @@ tf.app.flags.DEFINE_string(
 tf.app.flags.DEFINE_boolean(
     'just_labels', False,
     'Should the program just output the labels, or labels + super-imposed images?')
+tf.app.flags.DEFINE_boolean(
+    'low_precision', False,
+    'Whether the network uses ssd_net_high or ssd_net_low (for low precision).')
 tf.app.flags.DEFINE_string(
     'specify_gpu', None,
     'Which GPU(s) to use, in a string (e.g. `0,1,2`) If `None`, uses all available.')
@@ -83,8 +88,6 @@ tf.app.flags.DEFINE_float(
     'Factor by which to scale the number of convolutional kernel feature layers.')
 
 FLAGS = tf.app.flags.FLAGS
-
-dataset_lib = ['prc', 'auto']
 
 #CUDA_VISIBLE_DEVICES
 
@@ -183,19 +186,18 @@ def write_images_with_bboxes(image_input, all_labels, all_scores, all_bboxes, sh
 
             saver.restore(sess, get_checkpoint())
 
-            filename_queue = tf.gfile.ListDirectory(os.path.join(FLAGS.input_data,dataset_lib[0]))
+            filename_queue = tf.gfile.ListDirectory(FLAGS.input_data)
             
             for i in filename_queue:
-                for k in dataset_lib:
-                    in_filename = in_file + "{}/{}".format(k, i)
-                    out_filename = out_file + "{}_{}".format(k, i)
-                    np_image = np.array(Image.open(in_filename))
-                    if add_noise:
-                        np_image = np.uint8(np_image + max(np.random.normal(0, FLAGS.add_noise), 0))
-                    labels_, scores_, bboxes_ = sess.run([all_labels, all_scores, all_bboxes], feed_dict = {image_input : np_image, shape_input : np_image.shape[:-1]})
+                in_filename = in_file + "{}".format(i)
+                out_filename = out_file + "{}".format(i)
+                np_image = np.array(Image.open(in_filename))
+                if FLAGS.add_noise:
+                    np_image = np.uint8(np_image + max(np.random.normal(0, FLAGS.add_noise), 0))
+                labels_, scores_, bboxes_ = sess.run([all_labels, all_scores, all_bboxes], feed_dict = {image_input : np_image, shape_input : np_image.shape[:-1]})
 
-                    img_to_draw = draw_toolbox.bboxes_draw_on_img(np_image, labels_, scores_, bboxes_, thickness=2)
-                    Image.fromarray(img_to_draw).save(out_filename)
+                img_to_draw = draw_toolbox.bboxes_draw_on_img(np_image, labels_, scores_, bboxes_, thickness=2)
+                Image.fromarray(img_to_draw).save(out_filename)
 
 def write_labels_to_file(image_input, all_labels, all_scores, all_bboxes, shape_input, in_file=FLAGS.input_data,out_file=FLAGS.output_data):
     saver = tf.train.Saver()
@@ -205,36 +207,36 @@ def write_labels_to_file(image_input, all_labels, all_scores, all_bboxes, shape_
         sess.run(init)
     
         saver.restore(sess, get_checkpoint())
-        filename_queue = tf.gfile.ListDirectory(os.path.join(FLAGS.input_data, dataset_lib[0]))
+        filename_queue = tf.gfile.ListDirectory(FLAGS.input_data)
         with open(os.path.join(FLAGS.output_data, 'results_complete.csv'), 'wt') as f:
             f.write('Vision Type, Detection Algorithm, Frame, Detection Class, Detection Probability, left, top, right, bottom, adj left, adj top, adj right, adj bottom, volume\n')
             for i in filename_queue:
-                for k in dataset_lib:
-                    in_filename = in_file + "{}/{}".format(k, i)
-                    out_filename = out_file + "{}_{}".format(k, i)
-                    img = Image.open(in_filename)
-                    classes, scores, bboxes = sess.run([all_labels, all_scores, all_bboxes], feed_dict = {image_input : img, shape_input : img.shape[:-1]})
-                    
-                    shape = img.shape
-                    
-                    for j in range(bboxes.shape[0]):
-                        if classes[j] < 1: continue
-                        bbox = bboxes[j]
-                        
-                        top = int(bbox[0] * shape[0])
-                        left = int(bbox[1] * shape[1])
-                        bottom = int(bbox[2] * shape[0])
-                        right = int(bbox[3] * shape[1])
-                        if (right - left < 1) or (bottom - top < 1) or scores[j] < 0.5:
-                            continue
+                in_filename = in_file + "{}".format(i)
+                out_filename = out_file + "{}".format(i)
+                img = Image.open(in_filename)
+                classes, scores, bboxes = sess.run([all_labels, all_scores, all_bboxes], feed_dict = {image_input : img, shape_input : img.shape[:-1]})
 
-                        f.write('{}, ssd300, {:s}, {}, {:.3f}, {:.1f}, {:.1f}, {:.1f}, {:.1f}, , , , , {:0f}\n'.
-                                   format(k, i, label2name_table[classes[j]], scores[j],
-                                   left, top, right, bottom,(right - left)*(bottom - top)))
+                shape = img.shape
+
+                for j in range(bboxes.shape[0]):
+                    if classes[j] < 1: continue
+                    bbox = bboxes[j]
+
+                    top = int(bbox[0] * shape[0])
+                    left = int(bbox[1] * shape[1])
+                    bottom = int(bbox[2] * shape[0])
+                    right = int(bbox[3] * shape[1])
+                    if (right - left < 1) or (bottom - top < 1) or scores[j] < 0.5:
+                        continue
+
+                    f.write('ssd300, {:s}, {}, {:.3f}, {:.1f}, {:.1f}, {:.1f}, {:.1f}, , , , , {:0f}\n'.
+                            format(i, label2name_table[classes[j]], scores[j],
+                            left, top, right, bottom, (right - left)*(bottom - top)))
 
 def main(_):
     if FLAGS.specify_gpu!=None:
         os.environ['CUDA_VISIBLE_DEVICES'] = FLAGS.specify_gpu
+    gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=FLAGS.gpu_memory_fraction)
     with tf.Graph().as_default():
         out_shape = [FLAGS.train_image_size] * 2
 
