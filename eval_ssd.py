@@ -117,6 +117,7 @@ tf.app.flags.DEFINE_float(
     'feature_scale', 1.0,
     'Factor by which to scale the number of convolutional kernel feature layers.')
 
+
 FLAGS = tf.app.flags.FLAGS
 
 if FLAGS.imgnet:

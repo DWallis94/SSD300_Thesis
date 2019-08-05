@@ -244,6 +244,10 @@ def input_pipeline(dataset_pattern='train-*', add_noise=FLAGS.add_noise, is_trai
         def anchor_encoder_fn(glabels_, gbboxes_): return anchor_encoder_decoder.encode_all_anchors(
             glabels_, gbboxes_, all_anchors, all_num_anchors_depth, all_num_anchors_spatial)
 
+        #image_preprocessing_fn = lambda image_, labels_, bboxes_ : ssd_preprocessing.preprocess_image(image_, labels_, bboxes_, out_shape, add_noise=FLAGS.add_noise, is_training=is_training, data_format=FLAGS.data_format, output_rgb=False)
+        #anchor_encoder_fn = lambda glabels_, gbboxes_: anchor_encoder_decoder.encode_all_anchors(glabels_, gbboxes_, all_anchors, all_num_anchors_depth, all_num_anchors_spatial)
+
+
         image, _, shape, loc_targets, cls_targets, match_scores = dataset_common.slim_get_batch(FLAGS.num_classes,
                                                                                                 batch_size,
                                                                                                 ('train' if is_training else 'val'),
