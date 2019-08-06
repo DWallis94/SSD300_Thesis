@@ -1,0 +1,31 @@
+## General Notes:
+# Note: If a parameter is set during training (e.g. python train_ssd.py --quant_w 8), this param must be set identically when calling eval_ssd (python eval_ssd.py --quant_w 8) for correct evaluation
+
+## To Train:
+# Note: need to put contents of VOCROOT folder (with Pascal VOC 2007+2012 imageset) into folder ./VOCROOT_backup
+# Note2: saves the checkpoint file to folder ./logs every 1000 steps
+python ./SSD300_Thesis/train_ssd.py
+
+## To Evaluate Performance:
+# Note: need to put contents of VOCROOT folder (with Pascal VOC 2007+2012 imageset) into folder ./VOCROOT_backup
+# Note2: reads the last saved checkpoint file in ./logs and applies it to a test-set
+# Note3: saves the predictions from this test-set to ./logs/predict
+python ./SSD300_Thesis/eval_ssd.py
+
+## To Display Accuracy on test-set:
+# Note: Reads the predictions in ./logs/predict and compares them to the ground-truth labels for the test-set
+# Note2: Prints the class accuracy for predictions, and saves to a text file in ./logs/predict
+python ./SSD300_Thesis/voc_eval.py
+
+## To Run Trained Model on any folder of images:
+python ./SSD300_Thesis/run_ssd.py --input_data './imageset'
+
+## Extracting frames from a video:
+# Download FFMPEG command-line tool from: https://ffmpeg.org/download.html#build-mac
+# Install and add to path
+# Note: assumes video is named 'input_video.mp4' and frames are to be extracted to folder ./frames relative to work dir
+# Extract frames from video with command: 'ffmpeg -i ./input_video.mp4 ./frames/frame%05d.jpg -hide_banner'
+
+## Create a video from a folder of images:
+# Download & Install FFMPEG (see above)
+# Create video with command: 'ffmpeg -framerate 24 -i ./frames/frame%05d.png output_vid.mp4'
