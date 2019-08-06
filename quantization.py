@@ -13,9 +13,9 @@ import numpy as np
 
 
 def stochastic_round(x):
-    prob_1 = 1 - (x - np.floor(x))
-    prob_2 = x - np.floor(x)
-    x_rounded = np.random.choice(a=[0, 1], p=[prob_1, prob_2])
+    prob_0 = 1 - (x - np.floor(x))
+    prob_1 = x - np.floor(x)
+    x_rounded = np.random.choice(a=[0, 1], p=[prob_0, prob_1])
     return x_rounded
 
 # tf.where( in_our_region, tf.zeros(), tf.ones() ) returns a tensor whose elements come from A or B depending on the condition evaluation at each position
@@ -54,9 +54,7 @@ def quantize_and_prune_by_sparsity(x, k, target_sparsity, quant_range, begin_pru
 
     # Some function definitions needed for feeding to pruning tensor ops
     stochastic_round_vect = np.vectorize(stochastic_round)
-    def prune_stochastic(x): return tf.multiply(tf.py_func(
-        stochastic_round_vect, [x], tf.float32), x)
-
+    def prune_stochastic(x): return tf.multiply(tf.py_func(stochastic_round_vect, [x], tf.float32), x)
     def prune_absolute(x): return tf.zeros(shape=tf.shape(x))
     def dont_prune(x): return x
 

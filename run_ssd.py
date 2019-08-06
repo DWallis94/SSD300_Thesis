@@ -39,6 +39,8 @@ tf.app.flags.DEFINE_integer(
 tf.app.flags.DEFINE_integer(
     'train_image_size', 300,
     'The size of the input image for the model to use.')
+tf.app.flags.DEFINE_float(
+    'gpu_memory_fraction', 1., 'GPU memory fraction to use.')
 tf.app.flags.DEFINE_string(
     'data_format', 'channels_first',  # 'channels_first' or 'channels_last'
     'A flag to override the data format used in the model. channels_first '
@@ -286,6 +288,8 @@ def write_labels_to_file(image_input, all_labels, all_scores, all_bboxes, shape_
 def main(_):
     if FLAGS.specify_gpu != None:
         os.environ['CUDA_VISIBLE_DEVICES'] = FLAGS.specify_gpu
+    gpu_options = tf.GPUOptions(
+        per_process_gpu_memory_fraction=FLAGS.gpu_memory_fraction)
     with tf.Graph().as_default():
         out_shape = [FLAGS.train_image_size] * 2
 
