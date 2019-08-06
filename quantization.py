@@ -54,7 +54,7 @@ def quantize_and_prune_by_sparsity(x, k, target_sparsity, quant_range, begin_pru
 
     # Some function definitions needed for feeding to pruning tensor ops
     stochastic_round_vect = np.vectorize(stochastic_round)
-    def prune_stochastic(x): return tf.multiply(tf.py_func(stochastic_round_vect, [x], tf.float32), x)
+    def prune_stochastic(x): return tf.py_func(stochastic_round_vect, [x], tf.float32)*(min + step_size/2)
     def prune_absolute(x): return tf.zeros(shape=tf.shape(x))
     def dont_prune(x): return x
 
@@ -74,10 +74,11 @@ def stop_grad(real, quant):
 
 def quantize_and_prune_weights(w, k, thresh, begin_pruning, end_pruning, pruning_frequency, target_sparsity):
     #w_clipped = tf.clip_by_value(w, -1, 1)
+    w_norm = rescale(w, [-1, 1])
     w_quant_pos = quantize_and_prune_by_sparsity(
-        w, np.ceil((k - 1) / 2), target_sparsity, [abs(thresh), 1], begin_pruning, end_pruning, pruning_frequency)
+        w_norm, np.ceil((k - 1) / 2), target_sparsity, [abs(thresh), 1], begin_pruning, end_pruning, pruning_frequency)
     w_quant_neg = quantize_and_prune_by_sparsity(
-        w, np.floor((k - 1) / 2), target_sparsity, [-1, -abs(thresh)], begin_pruning, end_pruning, pruning_frequency)
+        w_norm, np.floor((k - 1) / 2), target_sparsity, [-1, -abs(thresh)], begin_pruning, end_pruning, pruning_frequency)
     w_quant = tf.where(tf.greater_equal(w, 0),
                        w_quant_pos, w_quant_neg)
     return stop_grad(w, w_quant)
@@ -85,9 +86,10 @@ def quantize_and_prune_weights(w, k, thresh, begin_pruning, end_pruning, pruning
 
 def quantize_and_prune_activations(a, k, thresh, begin_pruning, end_pruning, pruning_frequency, target_sparsity):
     #a_clipped = tf.clip_by_value(a, 0, 1)
+    a_norm = rescale(a, [0, 1])
     a_quant = quantize_and_prune_by_sparsity(
-        a, k - 1, target_sparsity, [abs(thresh), 1], begin_pruning, end_pruning, pruning_frequency)
-    return stop_grad(a, a_quant)
+        a_norm, k - 1, target_sparsity, [abs(thresh), 1], begin_pruning, end_pruning, pruning_frequency)
+    return stop_grad(a_norm, a_quant)
 
 
 def quantize(zr, k):
@@ -107,6 +109,13 @@ def quantize_activations(xr, k):
     clipped = tf.clip_by_value(xr, 0, 1)
     quant = quantize(clipped, k)
     return stop_grad(xr, quant)
+
+def rescale(x, range):
+    l = range[0]
+    u = range[1]
+    min = tf.reduce_min(x)
+    max = tf.reduce_max(x)
+    return l + tf.divide(tf.subtract(x,min),tf.subtract(max,min))*(u-l)
 
 
 def shaped_relu(x, a=1.0):
