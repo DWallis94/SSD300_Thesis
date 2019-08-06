@@ -79,9 +79,9 @@ def quantize_and_prune_weights(w, k, thresh, begin_pruning, end_pruning, pruning
         w_norm, np.ceil((k - 1) / 2), target_sparsity, [abs(thresh), 1], begin_pruning, end_pruning, pruning_frequency)
     w_quant_neg = quantize_and_prune_by_sparsity(
         w_norm, np.floor((k - 1) / 2), target_sparsity, [-1, -abs(thresh)], begin_pruning, end_pruning, pruning_frequency)
-    w_quant = tf.where(tf.greater_equal(w, 0),
+    w_quant = tf.where(tf.greater_equal(w_norm, 0),
                        w_quant_pos, w_quant_neg)
-    return stop_grad(w, w_quant)
+    return stop_grad(w_norm, w_quant)
 
 
 def quantize_and_prune_activations(a, k, thresh, begin_pruning, end_pruning, pruning_frequency, target_sparsity):
