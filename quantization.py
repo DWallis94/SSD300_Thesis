@@ -32,8 +32,8 @@ def quantize_and_prune_weights(w, k, thresh, begin_pruning, end_pruning, pruning
         ## Quantize and Prune
         quant_force_val_pos = abs(thresh) + (1 - abs(thresh))/2**np.ceil((k - 1) / 2)
         quant_force_val_neg = abs(thresh) + (1 - abs(thresh))/2**np.floor((k - 1) / 2)
-        w_Q_pos = quantize_region(w_norm, np.ceil((k - 1) / 2), [abs(thresh), 1])                                                       # Positive quant region
-        w_Q_pos_neg = quantize_region(w_Q_pos, np.floor((k - 1) / 2), [-1, -abs(thresh)])                                               # Negative quant region
+        w_Q_pos = quantize_region(w_norm, np.ceil((k - 1) / 2), [abs(thresh), 1]) # Positive quant region
+        w_Q_pos_neg = quantize_region(w_Q_pos, np.floor((k - 1) / 2), [-1, -abs(thresh)]) # Negative quant region
         w_Q_P_pos_neg = prune(w_Q_pos_neg, [-abs(thresh), abs(thresh)], target_sparsity, begin_pruning, end_pruning, pruning_frequency, quant_force_val_pos, quant_force_val_neg) # Prune region close to zero
         return stop_grad(w_norm, w_Q_P_pos_neg)
 
@@ -97,9 +97,9 @@ def prune(zr, prune_range, target_sparsity, begin_pruning, end_pruning, pruning_
     sparsity = tf.nn.zero_fraction(zr)
 
     # Conditions for pruning based on global step and sparsity
-    cond_A = tf.logical_and(tf.logical_and(tf.greater_equal(global_step, begin_pruning), tf.less(global_step, end_pruning)), tf.equal(tf.mod(global_step, pruning_frequency), tf.zeros(shape=tf.shape(global_step), dtype=tf.int32)))
-    cond_B = tf.greater_equal(global_step, end_pruning)
-    cond_C = tf.less(sparsity, target_sparsity)
+    cond_A = tf.logical_and(tf.logical_and(tf.greater_equal(global_step, begin_pruning), tf.less(global_step, end_pruning)), tf.equal(tf.mod(global_step, pruning_frequency), tf.zeros(shape=tf.shape(global_step), dtype=tf.int32))) # Are we in the soft-prune phase?
+    cond_B = tf.greater_equal(global_step, end_pruning) # Are we in the hard-prune yet?
+    cond_C = tf.less(sparsity, target_sparsity) # Have we reached the target sparsity yet?
 
     def prune_stochastic(zr): return zr * stochastic_round_tensor(zr)
     def prune_stoch_final(zr):
@@ -111,7 +111,7 @@ def prune(zr, prune_range, target_sparsity, begin_pruning, end_pruning, pruning_
     def dont_prune(zr): return zr
 
     zr_pruned = tf.case(pred_fn_pairs=[(tf.logical_and(cond_A, cond_C), lambda: prune_stochastic(
-        zr)), (tf.logical_and(cond_B, cond_C), lambda: prune_stoch_final(zr))], default=lambda: dont_prune(zr), exclusive=True)
+        zr)), (cond_B, lambda: prune_stoch_final(zr))], default=lambda: dont_prune(zr), exclusive=True)
 
     return tf.where(tf.logical_and(tf.greater_equal(zr, min_val), tf.less_equal(zr, max_val)), zr_pruned, zr)
 
