@@ -20,6 +20,7 @@ import os
 import sys
 
 import tensorflow as tf
+import numpy as np
 
 from net import ssd_net_high
 from net import ssd_net_low
@@ -152,7 +153,7 @@ tf.app.flags.DEFINE_float(
     'threshold_a', 0,
     'Pruning threshold under which to zero out the activations.')
 tf.app.flags.DEFINE_integer(
-    'start_pruning_at_step', 20000,
+    'begin_pruning_at_step', 20000,
     'Specifies which step pruning will begin to occur after.')
 tf.app.flags.DEFINE_integer(
     'end_pruning_at_step', 100000,
@@ -163,12 +164,20 @@ tf.app.flags.DEFINE_integer(
 tf.app.flags.DEFINE_float(
     'target_sparsity', 0.5,
     'Specify the target sparsity for pruning such that pruning will stop once the weight and activation-sparsity reaches this value.')
+tf.app.flags.DEFINE_boolean(
+    'auto_flags', True,
+    'Let the program guess appropriate flags for you? Recommended unless you know what you are doing.')
 
 
 FLAGS = tf.app.flags.FLAGS
 
 if FLAGS.imgnet:
     FLAGS.data_dir = '/opt/datasets/imgnet-data'
+
+if FLAGS.auto_flags:
+    FLAGS.max_number_of_steps = 120000 * (32 / FLAGS.batch_size)
+    FLAGS.begin_pruning_at_step = np.ceil(0.05*FLAGS.max_number_of_steps)
+    FLAGS.end_pruning_at_step = np.ceil(0.9 * FLAGS.max_number_of_steps)
 
 # CUDA_VISIBLE_DEVICES
 
@@ -339,7 +348,7 @@ def ssd_model_fn(features, labels, mode, params):
         if FLAGS.quant_w != 32 or FLAGS.quant_a != 32 or FLAGS.threshold_w != 0 or FLAGS.threshold_a != 0:
             backbone = ssd_net_low.VGG16Backbone(params['data_format'])
             feature_layers = backbone.forward(features, quant_w=FLAGS.quant_w, quant_a=FLAGS.quant_a, threshold_w=FLAGS.threshold_w, threshold_a=FLAGS.threshold_a,
-                                              begin_pruning=FLAGS.start_pruning_at_step, end_pruning=FLAGS.end_pruning_at_step, pruning_frequency=FLAGS.pruning_frequency, target_sparsity=FLAGS.target_sparsity, training=(mode == tf.estimator.ModeKeys.TRAIN))
+                                              begin_pruning=FLAGS.begin_pruning_at_step, end_pruning=FLAGS.end_pruning_at_step, pruning_frequency=FLAGS.pruning_frequency, target_sparsity=FLAGS.target_sparsity, training=(mode == tf.estimator.ModeKeys.TRAIN))
             # print(feature_layers)
             location_pred, cls_pred = ssd_net_low.multibox_head(
                 feature_layers, params['num_classes'], all_num_anchors_depth, data_format=params['data_format'])
