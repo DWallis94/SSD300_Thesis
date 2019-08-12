@@ -22,7 +22,7 @@ def quantize_and_prune_weights(w, k, thresh, begin_pruning, end_pruning, pruning
         return w_norm
     elif thresh == 0:
         ## Quantize
-        w_quant = quantize(w_norm, k, [-1, 1])
+        w_quant = quantize_region(w_norm, k, [-1, 1])
         return stop_grad(w_norm, w_quant)
     elif k == 32:
         ## Prune
@@ -46,7 +46,7 @@ def quantize_and_prune_activations(a, k, thresh, begin_pruning, end_pruning, pru
         return a_norm
     elif thresh == 0:
         ## Quantize
-        a_quant = quantize(a_norm, k, [0, 1])
+        a_quant = quantize_region(a_norm, k, [0, 1])
         return stop_grad(a_norm, a_quant)
     elif k == 32:
         ## Prune
@@ -72,19 +72,6 @@ def quantize_region(zr, k, quant_range):
 
     return tf.where(tf.logical_and(tf.greater_equal(
         zr, min_val), tf.less_equal(zr, max_val)), zr_quant, zr)
-
-def quantize(zr, k, quant_range):
-    """
-    Given a tensor `zr`, number of bits `k`, and quantization range `quant_range`, assumes quant_range covers the entire valid range of the tensor, and quantizes all values within this region to the preset number of bits.
-    """
-
-    min_val = quant_range[0]
-    max_val = quant_range[1]
-    step_size = (max_val - min_val) / 2**k
-
-    zr_quant = min_val + step_size * (tf.floor((zr - min_val) / step_size) + 0.5)
-
-    return zr_quant
 
 def prune(zr, prune_range, target_sparsity, begin_pruning, end_pruning, pruning_frequency):
     """
