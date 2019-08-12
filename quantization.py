@@ -30,9 +30,11 @@ def quantize_and_prune_weights(w, k, thresh, begin_pruning, end_pruning, pruning
         return stop_grad(w_norm, w_prune)
     else:
         ## Quantize and Prune
-        w_Q_pos = quantize_region(w_norm, np.ceil((k - 1) / 2), [abs(thresh), 1]) # Positive quant region
-        w_Q_pos_neg = quantize_region(w_Q_pos, np.floor((k - 1) / 2), [-1, -abs(thresh)]) # Negative quant region
-        w_Q_P_pos_neg = prune(w_Q_pos_neg, [-abs(thresh), abs(thresh)], target_sparsity, begin_pruning, end_pruning, pruning_frequency) # Prune region close to zero
+        quant_force_val_pos = abs(thresh) + (1 - abs(thresh))/2**np.ceil((k - 1) / 2)
+        quant_force_val_neg = abs(thresh) + (1 - abs(thresh))/2**np.floor((k - 1) / 2)
+        w_Q_pos = quantize_region(w_norm, np.ceil((k - 1) / 2), [abs(thresh), 1])                                                       # Positive quant region
+        w_Q_pos_neg = quantize_region(w_Q_pos, np.floor((k - 1) / 2), [-1, -abs(thresh)])                                               # Negative quant region
+        w_Q_P_pos_neg = prune(w_Q_pos_neg, [-abs(thresh), abs(thresh)], target_sparsity, begin_pruning, end_pruning, pruning_frequency, quant_force_val_pos, quant_force_val_neg) # Prune region close to zero
         return stop_grad(w_norm, w_Q_P_pos_neg)
 
 
@@ -54,8 +56,9 @@ def quantize_and_prune_activations(a, k, thresh, begin_pruning, end_pruning, pru
         return stop_grad(a_norm, a_prune)
     else:
         ## Quantize and Prune
+        quant_force_val = abs(thresh) + (1 - abs(thresh))/2**(k-1)
         a_Q = quantize_region(a_norm, k - 1, [abs(thresh), 1]) # Quant region
-        a_Q_P = prune(a_Q, [0, abs(thresh)], target_sparsity, begin_pruning, end_pruning, pruning_frequency) # Prune region close to zero
+        a_Q_P = prune(a_Q, [0, abs(thresh)], target_sparsity, begin_pruning, end_pruning, pruning_frequency, quant_force_val, 0) # Prune region close to zero
         return stop_grad(a_norm, a_Q_P)
 
 
@@ -73,7 +76,7 @@ def quantize_region(zr, k, quant_range):
     return tf.where(tf.logical_and(tf.greater_equal(
         zr, min_val), tf.less_equal(zr, max_val)), zr_quant, zr)
 
-def prune(zr, prune_range, target_sparsity, begin_pruning, end_pruning, pruning_frequency):
+def prune(zr, prune_range, target_sparsity, begin_pruning, end_pruning, pruning_frequency, quant_force_val_pos=0, quant_force_val_neg=0):
     """
     Prunes a given tensor within the range specified, returns the other regions unpruned.
     """
@@ -98,12 +101,17 @@ def prune(zr, prune_range, target_sparsity, begin_pruning, end_pruning, pruning_
     cond_B = tf.greater_equal(global_step, end_pruning)
     cond_C = tf.less(sparsity, target_sparsity)
 
-    def prune_stochastic(zr): return stochastic_round_tensor(zr)
-    def prune_absolute(zr): return tf.zeros(shape=tf.shape(zr))
+    def prune_stochastic(zr): return zr * stochastic_round_tensor(zr)
+    def prune_stoch_final(zr):
+        stoch_tensor = stochastic_round_tensor(zr)
+        if quant_force_val_pos != 0 or quant_force_val_neg != 0:
+            return tf.sign(zr) * tf.where(tf.greater(stoch_tensor, 0), quant_force_val_pos*tf.ones(shape=tf.shape(zr)), quant_force_val_neg*tf.ones(shape=tf.shape(zr)))
+        else:
+            return zr * stoch_tensor
     def dont_prune(zr): return zr
 
     zr_pruned = tf.case(pred_fn_pairs=[(tf.logical_and(cond_A, cond_C), lambda: prune_stochastic(
-        zr)), (tf.logical_and(cond_B, cond_C), lambda: prune_absolute(zr))], default=lambda: dont_prune(zr), exclusive=True)
+        zr)), (tf.logical_and(cond_B, cond_C), lambda: prune_stoch_final(zr))], default=lambda: dont_prune(zr), exclusive=True)
 
     return tf.where(tf.logical_and(tf.greater_equal(zr, min_val), tf.less_equal(zr, max_val)), zr_pruned, zr)
 
@@ -129,12 +137,11 @@ def stochastic_round_tensor(x):
     """
     Given a tensor x, stochastically rounds between x and zero depending on magnitude.
     """
-
     x_abs = tf.math.abs(x)
     rand = tf.random_uniform(shape=tf.shape(x), maxval=1)
     #prob_0 = 1 - (x_abs - tf.floor(x_abs)) # Useful to know, but not used in this implementation. So save memory by commenting it out!
     prob_1 = x - tf.floor(x_abs)
-    x_rounded = tf.where(tf.less(rand, prob_1), x, tf.zeros(shape=tf.shape(x)))
+    x_rounded = tf.where(tf.less(rand, prob_1), tf.ones(shape=tf.shape(x)), tf.zeros(shape=tf.shape(x)))
     return x_rounded
 
 def quantize_old( zr, k ):
