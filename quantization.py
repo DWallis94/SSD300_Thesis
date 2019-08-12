@@ -30,8 +30,8 @@ def quantize_and_prune_weights(w, k, thresh, begin_pruning, end_pruning, pruning
         return stop_grad(w_norm, w_prune)
     else:
         ## Quantize and Prune
-        w_Q_pos = quantize(w_norm, np.ceil((k - 1) / 2), [abs(thresh), 1]) # Positive quant region
-        w_Q_pos_neg = quantize(w_Q_pos, np.floor((k - 1) / 2), [-1, -abs(thresh)]) # Negative quant region
+        w_Q_pos = quantize_region(w_norm, np.ceil((k - 1) / 2), [abs(thresh), 1]) # Positive quant region
+        w_Q_pos_neg = quantize_region(w_Q_pos, np.floor((k - 1) / 2), [-1, -abs(thresh)]) # Negative quant region
         w_Q_P_pos_neg = prune(w_Q_pos_neg, [-abs(thresh), abs(thresh)], target_sparsity, begin_pruning, end_pruning, pruning_frequency) # Prune region close to zero
         return stop_grad(w_norm, w_Q_P_pos_neg)
 
@@ -54,12 +54,12 @@ def quantize_and_prune_activations(a, k, thresh, begin_pruning, end_pruning, pru
         return stop_grad(a_norm, a_prune)
     else:
         ## Quantize and Prune
-        a_Q = quantize(a_norm, k - 1, [abs(thresh), 1]) # Quant region
+        a_Q = quantize_region(a_norm, k - 1, [abs(thresh), 1]) # Quant region
         a_Q_P = prune(a_Q, [0, abs(thresh)], target_sparsity, begin_pruning, end_pruning, pruning_frequency) # Prune region close to zero
-    return stop_grad(a_norm, a_Q_P)
+        return stop_grad(a_norm, a_Q_P)
 
 
-def quantize(zr, k, quant_range):
+def quantize_region(zr, k, quant_range):
     """
     Given a tensor `zr`, number of bits `k`, and quantization range `quant_range`, quantizes all values within this region to the preset number of bits, leaving values in non-specified regions un-quantized.
     """
@@ -68,12 +68,23 @@ def quantize(zr, k, quant_range):
     max_val = quant_range[1]
     step_size = (max_val - min_val) / 2**k
 
-    zr_quant = tf.where(tf.logical_and(tf.greater_equal(
-        zr, min_val), tf.less_equal(zr, max_val)), zr, tf.zeros(shape=tf.shape(zr)))
-    zr_quant = min_val + step_size * (tf.floor((zr_quant - min_val) / step_size) + 0.5)
+    zr_quant = min_val + step_size * (tf.floor((zr - min_val) / step_size) + 0.5)
 
     return tf.where(tf.logical_and(tf.greater_equal(
         zr, min_val), tf.less_equal(zr, max_val)), zr_quant, zr)
+
+def quantize(zr, k, quant_range):
+    """
+    Given a tensor `zr`, number of bits `k`, and quantization range `quant_range`, assumes quant_range covers the entire valid range of the tensor, and quantizes all values within this region to the preset number of bits.
+    """
+
+    min_val = quant_range[0]
+    max_val = quant_range[1]
+    step_size = (max_val - min_val) / 2**k
+
+    zr_quant = min_val + step_size * (tf.floor((zr - min_val) / step_size) + 0.5)
+
+    return zr_quant
 
 def prune(zr, prune_range, target_sparsity, begin_pruning, end_pruning, pruning_frequency):
     """
@@ -96,23 +107,16 @@ def prune(zr, prune_range, target_sparsity, begin_pruning, end_pruning, pruning_
     sparsity = tf.nn.zero_fraction(zr)
 
     # Conditions for pruning based on global step and sparsity
-    cond_A = tf.reduce_all(tf.logical_and(tf.logical_and(tf.reduce_all(tf.greater_equal(global_step, begin_pruning)), tf.reduce_all(tf.less(
-        global_step, end_pruning))), tf.reduce_all(tf.equal(tf.mod(global_step, pruning_frequency), tf.zeros(shape=tf.shape(global_step), dtype=tf.int32)))))
-    cond_B = tf.reduce_all(tf.greater_equal(global_step, end_pruning))
+    cond_A = tf.logical_and(tf.logical_and(tf.greater_equal(global_step, begin_pruning), tf.less(global_step, end_pruning)), tf.equal(tf.mod(global_step, pruning_frequency), tf.zeros(shape=tf.shape(global_step), dtype=tf.int32)))
+    cond_B = tf.greater_equal(global_step, end_pruning)
     cond_C = tf.less(sparsity, target_sparsity)
-
-    # Some function definitions needed for feeding to pruning tensor ops
-    #stochastic_round_vect = np.vectorize(stochastic_round)
-    #def prune_stochastic(zr): return tf.py_func(stochastic_round_vect, [zr], tf.float32)
 
     def prune_stochastic(zr): return stochastic_round_tensor(zr)
     def prune_absolute(zr): return tf.zeros(shape=tf.shape(zr))
     def dont_prune(zr): return zr
 
-    zr_pruned = tf.where(tf.logical_and(tf.greater_equal(zr, min_val), tf.less_equal(
-        zr, max_val)), zr, tf.zeros(shape=tf.shape(zr)))
     zr_pruned = tf.case(pred_fn_pairs=[(tf.logical_and(cond_A, cond_C), lambda: prune_stochastic(
-        zr_pruned)), (tf.logical_and(cond_B, cond_C), lambda: prune_absolute(zr_pruned))], default=lambda: dont_prune(zr_pruned), exclusive=True)
+        zr)), (tf.logical_and(cond_B, cond_C), lambda: prune_absolute(zr))], default=lambda: dont_prune(zr), exclusive=True)
 
     return tf.where(tf.logical_and(tf.greater_equal(zr, min_val), tf.less_equal(zr, max_val)), zr_pruned, zr)
 
@@ -125,7 +129,8 @@ def rescale(x, rescale_range, epsilon=1e-12):
     u = rescale_range[1]
     min_val = tf.reduce_min(x)
     max_val = tf.reduce_max(x)
-    return l + ((x - min_val + epsilon) / tf.maximum((max_val - min_val), 2 * epsilon)) * (u - l)
+    #return l + ((x - min_val) / (max_val - min_val)) * (u - l)
+    return l + ((x - min_val + epsilon) / tf.maximum((max_val - min_val), 2*epsilon)) * (u - l)
 
 def stop_grad(real, quant):
     """
@@ -145,6 +150,12 @@ def stochastic_round_tensor(x):
     x_rounded = tf.where(tf.less(rand, prob_1), x, tf.zeros(shape=tf.shape(x)))
     return x_rounded
 
+def quantize_old( zr, k ):
+    """
+    Deprecated. Use quantize instead.
+    """
+    scaling = tf.cast( tf.pow( 2.0, k ) - 1, tf.float32 )
+    return tf.round( scaling * zr )/scaling
 
 def quantize_weights(w, k):
     """
@@ -153,7 +164,7 @@ def quantize_weights(w, k):
     # normalize first
     # zr = tf.tanh( w )/( tf.reduce_max( tf.abs( tf.tanh( w ) ) ) )
     zr = tf.clip_by_value(w, -1, 1)
-    quant = quantize(zr, k)
+    quant = quantize_old(zr, k)
     return stop_grad(w, quant)
 
 
@@ -162,7 +173,7 @@ def quantize_activations(xr, k):
     Deprecated. Use quantize_and_prune_activations instead.
     """
     clipped = tf.clip_by_value(xr, 0, 1)
-    quant = quantize(clipped, k)
+    quant = quantize_old(clipped, k)
     return stop_grad(xr, quant)
 
 def stochastic_round(x):

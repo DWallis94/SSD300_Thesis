@@ -225,10 +225,7 @@ class VGG16Backbone(object):
             tf.summary.histogram("act", conv)
             conv = tf.nn.bias_add(conv, bias, data_format=data_format)
             if batch_norm:
-                conv = tf.layers.batch_normalization(conv, axis=self._bn_axis, momentum=_BATCH_NORM_DECAY, epsilon=_BATCH_NORM_EPSILON, fused=_USE_FUSED_BN,
-                                                     reuse=None)
-            else:
-                conv = tf.layers.dropout(conv, rate=_DROPOUT_RATE)
+                conv = tf.layers.batch_normalization(conv, axis=self._bn_axis, momentum=_BATCH_NORM_DECAY, epsilon=_BATCH_NORM_EPSILON, fused=_USE_FUSED_BN, reuse=None)
             tf.summary.histogram("act_bn", conv)
             #conv = tf.nn.relu(conv)
             with tf.variable_scope("quantize_activations"):
@@ -246,10 +243,6 @@ class VGG16Backbone(object):
             filter_shape = [kernel_size, kernel_size,
                             inputs.shape[self._bn_axis], filters]
             conv_filter = tf.get_variable('kernel', filter_shape)
-            # Stephen: either add a mask here, apply it in each conv, and after training manually examine model performance before updating this mask and retraining
-            # OR: shift quantization thresholds so more values get put in the '0' bin, resulting in a greater sparsity
-            #conv_mask = tf.get_variable( 'mask', filter_shape, initializer = tf.ones(filter_shape))
-            #conv_filter = conv_filter * conv_mask
             tf.summary.histogram("weights_r", conv_filter)
             bias = tf.get_variable('bias', filters)
             conv = tf.nn.conv2d(input=inputs, filter=conv_filter, strides=strides, padding=padding, use_cudnn_on_gpu=True,
@@ -257,10 +250,7 @@ class VGG16Backbone(object):
             tf.summary.histogram("act", conv)
             conv = tf.nn.bias_add(conv, bias, data_format=data_format)
             if batch_norm:
-                conv = tf.layers.batch_normalization(conv, axis=self._bn_axis, momentum=_BATCH_NORM_DECAY, epsilon=_BATCH_NORM_EPSILON, fused=_USE_FUSED_BN,
-                                                     reuse=None)
-            else:
-                conv = tf.layers.dropout(conv, rate=_DROPOUT_RATE)
+                conv = tf.layers.batch_normalization(conv, axis=self._bn_axis, momentum=_BATCH_NORM_DECAY, epsilon=_BATCH_NORM_EPSILON, fused=_USE_FUSED_BN, reuse=None)
             tf.summary.histogram("act_bn", conv)
             conv = tf.nn.relu(conv)
             tf.summary.histogram("act_bn_q_r", conv)
