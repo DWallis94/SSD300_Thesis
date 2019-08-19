@@ -56,7 +56,7 @@ def quantize_and_prune_activations(a, k, thresh, begin_pruning, end_pruning, pru
         return stop_grad(a, a_quant)
     elif k == 32:
         ## Prune
-        a_prune = prune_simple(a_norm [0, abs(thresh)])
+        a_prune = prune_simple(a_norm, [0, abs(thresh)])
         #a_prune = prune_region(a_norm, [0, abs(thresh)], target_sparsity, begin_pruning, end_pruning, pruning_frequency)
         return stop_grad(a, a_prune)
     else:
