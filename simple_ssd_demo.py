@@ -181,17 +181,9 @@ def main(_):
         decode_fn = lambda pred : anchor_encoder_decoder.ext_decode_all_anchors(pred, all_anchors, all_num_anchors_depth, all_num_anchors_spatial)
 
         with tf.variable_scope(FLAGS.model_scope, default_name=None, values=[features], reuse=tf.AUTO_REUSE):
-            if FLAGS.low_precision:
-                backbone = ssd_net_low.VGG16Backbone(FLAGS.data_format)
-                feature_layers = backbone.forward(features, feature_scale=FLAGS.feature_scale, training=False)
-                location_pred, cls_pred = ssd_net_low.multibox_head(feature_layers, FLAGS.num_classes, all_num_anchors_depth, data_format=FLAGS.data_format)
-            else:
-                backbone = ssd_net_high.VGG16Backbone(FLAGS.data_format)
-                feature_layers = backbone.forward(features, feature_scale=FLAGS.feature_scale, training=False)
-                location_pred, cls_pred = ssd_net_high.multibox_head(feature_layers, FLAGS.num_classes, all_num_anchors_depth, data_format=FLAGS.data_format)
-            if FLAGS.data_format == 'channels_first':
-                cls_pred = [tf.transpose(pred, [0, 2, 3, 1]) for pred in cls_pred]
-                location_pred = [tf.transpose(pred, [0, 2, 3, 1]) for pred in location_pred]
+            backbone = ssd_net_low.VGG16Backbone(FLAGS.data_format)
+            feature_layers = backbone.forward(features, feature_scale=FLAGS.feature_scale, training=False)
+            location_pred, cls_pred = ssd_net_low.multibox_head(feature_layers, FLAGS.num_classes, all_num_anchors_depth, data_format=FLAGS.data_format)
 
             cls_pred = [tf.reshape(pred, [-1, FLAGS.num_classes]) for pred in cls_pred]
             location_pred = [tf.reshape(pred, [-1, 4]) for pred in location_pred]
