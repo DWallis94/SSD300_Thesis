@@ -223,7 +223,7 @@ def modified_smooth_l1(bbox_pred, bbox_targets, bbox_inside_weights=1., bbox_out
         SmoothL1(x) = 0.5 * (sigma * x)^2,    if |x| < 1 / sigma^2
                       |x| - 0.5 / sigma^2,    otherwise
     """
-    with tf.name_scope('smooth_l1', [bbox_pred, bbox_targets]):
+    with tf.name_scope('smooth_l1', None, [bbox_pred, bbox_targets]):
         sigma2 = sigma * sigma
 
         inside_mul = tf.multiply(
@@ -245,7 +245,7 @@ def modified_smooth_l1(bbox_pred, bbox_targets, bbox_inside_weights=1., bbox_out
 def select_bboxes(scores_pred, bboxes_pred, num_classes, select_threshold):
     selected_bboxes = {}
     selected_scores = {}
-    with tf.name_scope('select_bboxes', [scores_pred, bboxes_pred]):
+    with tf.name_scope('select_bboxes', None, [scores_pred, bboxes_pred]):
         for class_ind in range(1, num_classes):
             class_scores = scores_pred[:, class_ind]
             select_mask = class_scores > select_threshold
@@ -309,7 +309,7 @@ def nms_bboxes(scores_pred, bboxes_pred, nms_topk, nms_threshold, name):
 
 
 def parse_by_class(cls_pred, bboxes_pred, num_classes, select_threshold, min_size, keep_topk, nms_topk, nms_threshold):
-    with tf.name_scope('select_bboxes', [cls_pred, bboxes_pred]):
+    with tf.name_scope('select_bboxes', None, [cls_pred, bboxes_pred]):
         scores_pred = tf.nn.softmax(cls_pred)
         selected_bboxes, selected_scores = select_bboxes(
             scores_pred, bboxes_pred, num_classes, select_threshold)
