@@ -17,27 +17,30 @@ def quantize_and_prune_weights(w, k, thresh, begin_pruning, end_pruning, pruning
     Implements quantization and pruning as appropriate for weights.
     """
     #w_norm = rescale(w, [-1, 1])
-    w_norm = tf.clip_by_value(w, -1, 1)
-    #w_norm = w
+    #w_norm = tf.clip_by_value(w, -1, 1)
+    w_norm = w
     if thresh == 0 and k == 32:
         ## Don't quantize or prune
         return w_norm
     elif thresh == 0:
         ## Quantize
-        w_quant = quantize_region_midtread(w_norm, k, [-1, 1]) # quantizes only within secified region, passes tensor through elsewhere
+        w_quant = quantize_midtread_unbounded(w_norm, k) # quantize entire weight range
         return stop_grad(w, w_quant)
     elif k == 32:
         ## Prune
-        w_prune = prune_simplest(w_norm, [-abs(thresh), abs(thresh)]) # Set all weights within specified region to zero
-        #w_prune = prune_simple_stochastic(w_norm, [-abs(thresh), abs(thresh)]) # Round all weights within specified region stochastically
+        w_range = tf.reduce_max(w_norm) - tf.reduce_min(w_norm)
+        thresh_dynamic = (abs(thresh)/2)*w_range
+        thresh_dynamic = tf.Print(thresh_dynamic, [thresh_dynamic])
+        w_prune = prune_simplest(w_norm, [-thresh_dynamic, thresh_dynamic]) # Set all weights within specified region to zero
+        w_prune = prune_simple_stochastic(w_norm, [-thresh_dynamic, thresh_dynamic]) # Round all weights within specified region stochastically
         #w_prune = prune_region(w_norm, [-abs(thresh), abs(thresh)], target_sparsity, begin_pruning, end_pruning, pruning_frequency) # Ideal pruning (but extremely memory inefficient)
         return stop_grad(w, w_prune)
     else:
         ## Quantize and Prune
         #quant_force_val_pos = abs(thresh) + (1 - abs(thresh))/2**np.ceil((k - 1) / 2)
         #quant_force_val_neg = abs(thresh) + (1 - abs(thresh))/2**np.floor((k - 1) / 2)
-        w_Q_pos = quantize_region_midtread(w_norm, np.ceil((k - 1) / 2), [abs(thresh), 1]) # Positive quant region
-        w_Q_pos_neg = quantize_region_midtread(w_Q_pos, np.floor((k - 1) / 2), [-1, -abs(thresh)]) # Negative quant region
+        w_Q_pos = quantize_region_midtread_unbounded_pos(w_norm, np.ceil((k - 1) / 2), abs(thresh)) # Positive quant region
+        w_Q_pos_neg = quantize_region_midtread_unbounded_neg(w_Q_pos, np.floor((k - 1) / 2), -abs(thresh)) # Negative quant region
         #w_Q_P_pos_neg = prune_region(w_Q_pos_neg, [-abs(thresh), abs(thresh)], target_sparsity, begin_pruning, end_pruning, pruning_frequency, quant_force_val_pos, quant_force_val_neg) # Prune region close to zero
         w_Q_P_pos_neg = prune_simplest(w_Q_pos_neg, [-abs(thresh), abs(thresh)])
         return stop_grad(w, w_Q_P_pos_neg)
@@ -48,25 +51,25 @@ def quantize_and_prune_activations(a, k, thresh, begin_pruning, end_pruning, pru
     Implements quantization and pruning as appropriate for activations.
     """
     #a_norm = rescale(a, [0, 1])
-    a_norm = tf.clip_by_value(a, 0, 1)
-    #a_norm = a
+    #a_norm = tf.clip_by_value(a, 0, 1)
+    a_norm = a
     if thresh == 0 and k == 32:
         ## Don't quantize or prune
         return a_norm
     elif thresh == 0:
         ## Quantize
-        a_quant = quantize_region_midtread(a_norm, k, [0, 1])
+        a_quant = quantize_region_midtread_unbounded_pos(a_norm, k, 0) # quantize positive activation range
         return stop_grad(a, a_quant)
     elif k == 32:
         ## Prune
-        a_prune = prune_simplest(a_norm, [0, abs(thresh)])
-        #a_prune = prune_simple_stochastic(a_norm, [0, abs(thresh)])
+        #a_prune = prune_simplest(a_norm, [0, abs(thresh)])
+        a_prune = prune_simple_stochastic(a_norm, [0, abs(thresh)])
         #a_prune = prune_region(a_norm, [0, abs(thresh)], target_sparsity, begin_pruning, end_pruning, pruning_frequency)
         return stop_grad(a, a_prune)
     else:
         ## Quantize and Prune
         #quant_force_val = abs(thresh) + (1 - abs(thresh))/2**(k-1)
-        a_Q = quantize_region_midtread(a_norm, k - 1, [abs(thresh), 1]) # Quant region
+        a_Q = quantize_region_midtread_unbounded_pos(a_norm, k - 1, abs(thresh)) # quantize positive activation region
         #a_Q_P = prune_region(a_Q, [0, abs(thresh)], target_sparsity, begin_pruning, end_pruning, pruning_frequency, quant_force_val, 0) # Prune region close to zero
         a_Q_P = prune_simplest(a_Q, [0, abs(thresh)])
         return stop_grad(a, a_Q_P)
@@ -113,7 +116,7 @@ def quantize_region_midtread_unbounded_pos(zr, k, quant_thresh, epsilon=1e-12):
 
     zr_quant = min_bound + step_size * tf.round((zr - min_bound) / step_size)
 
-    return tf.where(tf.logical_and(tf.greater_equal(zr, min_bound - epsilon), tf.less_equal(zr, max_bound + epsilon)), zr_quant, zr)
+    return tf.where(tf.greater_equal(zr, min_bound - epsilon), zr_quant, zr)
 
 def quantize_region_midtread_unbounded_neg(zr, k, quant_thresh, epsilon=1e-12):
     """
@@ -128,7 +131,7 @@ def quantize_region_midtread_unbounded_neg(zr, k, quant_thresh, epsilon=1e-12):
 
     zr_quant = min_bound + step_size * tf.round((zr - min_bound) / step_size)
 
-    return tf.where(tf.logical_and(tf.greater_equal(zr, min_bound - epsilon), tf.less_equal(zr, max_bound + epsilon)), zr_quant, zr)
+    return tf.where(tf.less_equal(zr, max_bound + epsilon), zr_quant, zr)
 
 def quantize_midtread_unbounded(zr, k, epsilon=1e-12):
     """
@@ -143,18 +146,12 @@ def quantize_midtread_unbounded(zr, k, epsilon=1e-12):
 
     zr_quant = min_bound + step_size * tf.round((zr - min_bound) / step_size)
 
-    return tf.where(tf.logical_and(tf.greater_equal(zr, min_bound - epsilon), tf.less_equal(zr, max_bound + epsilon)), zr_quant, zr)
+    return zr_quant
 
 def prune_region(zr, prune_range, target_sparsity, begin_pruning, end_pruning, pruning_frequency, quant_force_val_pos=0, quant_force_val_neg=0, epsilon=1e-12):
     """
     Prunes a given tensor within the range specified, returns the other regions unpruned.
     """
-
-    # Define constant parameters as tensors for computations
-    target_sparsity = tf.constant(target_sparsity, dtype=tf.float32)
-    begin_pruning = tf.constant(begin_pruning, dtype=tf.int32)
-    end_pruning = tf.constant(end_pruning, dtype=tf.int32)
-    pruning_frequency = tf.constant(pruning_frequency, dtype=tf.int32)
 
     min_val = prune_range[0]
     max_val = prune_range[1]

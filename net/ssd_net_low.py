@@ -227,7 +227,6 @@ class VGG16Backbone(object):
             if batch_norm:
                 conv = tf.layers.batch_normalization(conv, axis=self._bn_axis, momentum=_BATCH_NORM_DECAY, epsilon=_BATCH_NORM_EPSILON, fused=_USE_FUSED_BN, reuse=None)
             tf.summary.histogram("act_bn", conv)
-            #conv = tf.nn.relu(conv)
             with tf.variable_scope("quantize_activations"):
                 conv = q.quantize_and_prune_activations(
                     conv, quant_a, threshold_a, begin_pruning, end_pruning, pruning_frequency, target_sparsity)
@@ -249,9 +248,9 @@ class VGG16Backbone(object):
                                 data_format=data_format, dilations=dilations, name=name)
             tf.summary.histogram("act", conv)
             conv = tf.nn.bias_add(conv, bias, data_format=data_format)
-            if batch_norm:
-                conv = tf.layers.batch_normalization(conv, axis=self._bn_axis, momentum=_BATCH_NORM_DECAY, epsilon=_BATCH_NORM_EPSILON, fused=_USE_FUSED_BN, reuse=None)
-            tf.summary.histogram("act_bn", conv)
+            #if batch_norm:
+            #    conv = tf.layers.batch_normalization(conv, axis=self._bn_axis, momentum=_BATCH_NORM_DECAY, epsilon=_BATCH_NORM_EPSILON, fused=_USE_FUSED_BN, reuse=None)
+            #tf.summary.histogram("act_bn", conv)
             conv = tf.nn.relu(conv)
             tf.summary.histogram("act_bn_q_r", conv)
             return conv
