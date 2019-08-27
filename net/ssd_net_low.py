@@ -107,35 +107,35 @@ class VGG16Backbone(object):
             x_inv_norm = tf.rsqrt(tf.maximum(square_sum, 1e-10))
             return tf.multiply(x, x_inv_norm, name=name)
 
-    def forward(self, inputs, quant_w=32, quant_a=32, threshold_w=0, threshold_a=0, begin_pruning=0, end_pruning=0, pruning_frequency=0, target_sparsity=0, training=False):
+    def forward(self, inputs, qw_en=False, qa_en=False, qw_bits=32, qa_bits=32, pw_en=False, pa_en=False, threshold_w=0, threshold_a=0, begin_pruning=0, end_pruning=0, pruning_frequency=0, target_sparsity=0, training=False):
         # inputs should in BGR
         feature_layers = []
         # forward vgg layers
         with tf.variable_scope('conv1') as scope:
             inputs = self.conv_block(inputs, 64, 3, (1, 1, 1, 1), 'conv1_1')
-            inputs = self.conv_block_low(inputs, 64, 3, (1, 1, 1, 1), 'conv1_2', quant_w=quant_w, quant_a=quant_a, threshold_w=threshold_w, threshold_a=threshold_a,
+            inputs = self.conv_block_low(inputs, 64, 3, (1, 1, 1, 1), 'conv1_2', qw_en=qw_en, qa_en=qa_en, qw_bits=qw_bits, qa_bits=qa_bits, pw_en=pw_en, pa_en=pa_en, threshold_w=threshold_w, threshold_a=threshold_a,
                                          begin_pruning=begin_pruning, end_pruning=end_pruning, pruning_frequency=pruning_frequency, target_sparsity=target_sparsity)
         inputs = self._pool1.apply(inputs)
         with tf.variable_scope('conv2') as scope:
-            inputs = self.conv_block_low(inputs, 128, 3, (1, 1, 1, 1), 'conv2_1', quant_w=quant_w, quant_a=quant_a, threshold_w=threshold_w, threshold_a=threshold_a,
+            inputs = self.conv_block_low(inputs, 128, 3, (1, 1, 1, 1), 'conv2_1', qw_en=qw_en, qa_en=qa_en, qw_bits=qw_bits, qa_bits=qa_bits, pw_en=pw_en, pa_en=pa_en, threshold_w=threshold_w, threshold_a=threshold_a,
                                          begin_pruning=begin_pruning, end_pruning=end_pruning, pruning_frequency=pruning_frequency, target_sparsity=target_sparsity)
-            inputs = self.conv_block_low(inputs, 128, 3, (1, 1, 1, 1), 'conv2_2', quant_w=quant_w, quant_a=quant_a, threshold_w=threshold_w, threshold_a=threshold_a,
+            inputs = self.conv_block_low(inputs, 128, 3, (1, 1, 1, 1), 'conv2_2', qw_en=qw_en, qa_en=qa_en, qw_bits=qw_bits, qa_bits=qa_bits, pw_en=pw_en, pa_en=pa_en, threshold_w=threshold_w, threshold_a=threshold_a,
                                          begin_pruning=begin_pruning, end_pruning=end_pruning, pruning_frequency=pruning_frequency, target_sparsity=target_sparsity)
         inputs = self._pool2.apply(inputs)
         with tf.variable_scope('conv3') as scope:
-            inputs = self.conv_block_low(inputs, 256, 3, (1, 1, 1, 1), 'conv3_1', quant_w=quant_w, quant_a=quant_a, threshold_w=threshold_w, threshold_a=threshold_a,
+            inputs = self.conv_block_low(inputs, 256, 3, (1, 1, 1, 1), 'conv3_1', qw_en=qw_en, qa_en=qa_en, qw_bits=qw_bits, qa_bits=qa_bits, pw_en=pw_en, pa_en=pa_en, threshold_w=threshold_w, threshold_a=threshold_a,
                                          begin_pruning=begin_pruning, end_pruning=end_pruning, pruning_frequency=pruning_frequency, target_sparsity=target_sparsity)
-            inputs = self.conv_block_low(inputs, 256, 3, (1, 1, 1, 1), 'conv3_2', quant_w=quant_w, quant_a=quant_a, threshold_w=threshold_w, threshold_a=threshold_a,
+            inputs = self.conv_block_low(inputs, 256, 3, (1, 1, 1, 1), 'conv3_2', qw_en=qw_en, qa_en=qa_en, qw_bits=qw_bits, qa_bits=qa_bits, pw_en=pw_en, pa_en=pa_en, threshold_w=threshold_w, threshold_a=threshold_a,
                                          begin_pruning=begin_pruning, end_pruning=end_pruning, pruning_frequency=pruning_frequency, target_sparsity=target_sparsity)
-            inputs = self.conv_block_low(inputs, 256, 3, (1, 1, 1, 1), 'conv3_3', quant_w=quant_w, quant_a=quant_a, threshold_w=threshold_w, threshold_a=threshold_a,
+            inputs = self.conv_block_low(inputs, 256, 3, (1, 1, 1, 1), 'conv3_3', qw_en=qw_en, qa_en=qa_en, qw_bits=qw_bits, qa_bits=qa_bits, pw_en=pw_en, pa_en=pa_en, threshold_w=threshold_w, threshold_a=threshold_a,
                                          begin_pruning=begin_pruning, end_pruning=end_pruning, pruning_frequency=pruning_frequency, target_sparsity=target_sparsity)
         inputs = self._pool3.apply(inputs)
         with tf.variable_scope('conv4') as scope:
-            inputs = self.conv_block_low(inputs, 512, 3, (1, 1, 1, 1), 'conv4_1', quant_w=quant_w, quant_a=quant_a, threshold_w=threshold_w, threshold_a=threshold_a,
+            inputs = self.conv_block_low(inputs, 512, 3, (1, 1, 1, 1), 'conv4_1', qw_en=qw_en, qa_en=qa_en, qw_bits=qw_bits, qa_bits=qa_bits, pw_en=pw_en, pa_en=pa_en, threshold_w=threshold_w, threshold_a=threshold_a,
                                          begin_pruning=begin_pruning, end_pruning=end_pruning, pruning_frequency=pruning_frequency, target_sparsity=target_sparsity)
-            inputs = self.conv_block_low(inputs, 512, 3, (1, 1, 1, 1), 'conv4_2', quant_w=quant_w, quant_a=quant_a, threshold_w=threshold_w, threshold_a=threshold_a,
+            inputs = self.conv_block_low(inputs, 512, 3, (1, 1, 1, 1), 'conv4_2', qw_en=qw_en, qa_en=qa_en, qw_bits=qw_bits, qa_bits=qa_bits, pw_en=pw_en, pa_en=pa_en, threshold_w=threshold_w, threshold_a=threshold_a,
                                          begin_pruning=begin_pruning, end_pruning=end_pruning, pruning_frequency=pruning_frequency, target_sparsity=target_sparsity)
-            inputs = self.conv_block_low(inputs, 512, 3, (1, 1, 1, 1), 'conv4_3', quant_w=quant_w, quant_a=quant_a, threshold_w=threshold_w, threshold_a=threshold_a,
+            inputs = self.conv_block_low(inputs, 512, 3, (1, 1, 1, 1), 'conv4_3', qw_en=qw_en, qa_en=qa_en, qw_bits=qw_bits, qa_bits=qa_bits, pw_en=pw_en, pa_en=pa_en, threshold_w=threshold_w, threshold_a=threshold_a,
                                          begin_pruning=begin_pruning, end_pruning=end_pruning, pruning_frequency=pruning_frequency, target_sparsity=target_sparsity)
         # conv4_3
         with tf.variable_scope('conv4_3_scale') as scope:
@@ -152,20 +152,20 @@ class VGG16Backbone(object):
                                   )
         inputs = self._pool4.apply(inputs)
         with tf.variable_scope('conv5') as scope:
-            inputs = self.conv_block_low(inputs, 512, 3, (1, 1, 1, 1), 'conv5_1', quant_w=quant_w, quant_a=quant_a, threshold_w=threshold_w, threshold_a=threshold_a,
+            inputs = self.conv_block_low(inputs, 512, 3, (1, 1, 1, 1), 'conv5_1', qw_en=qw_en, qa_en=qa_en, qw_bits=qw_bits, qa_bits=qa_bits, pw_en=pw_en, pa_en=pa_en, threshold_w=threshold_w, threshold_a=threshold_a,
                                          begin_pruning=begin_pruning, end_pruning=end_pruning, pruning_frequency=pruning_frequency, target_sparsity=target_sparsity)
-            inputs = self.conv_block_low(inputs, 512, 3, (1, 1, 1, 1), 'conv5_2', quant_w=quant_w, quant_a=quant_a, threshold_w=threshold_w, threshold_a=threshold_a,
+            inputs = self.conv_block_low(inputs, 512, 3, (1, 1, 1, 1), 'conv5_2', qw_en=qw_en, qa_en=qa_en, qw_bits=qw_bits, qa_bits=qa_bits, pw_en=pw_en, pa_en=pa_en, threshold_w=threshold_w, threshold_a=threshold_a,
                                          begin_pruning=begin_pruning, end_pruning=end_pruning, pruning_frequency=pruning_frequency, target_sparsity=target_sparsity)
-            inputs = self.conv_block_low(inputs, 512, 3, (1, 1, 1, 1), 'conv5_3', quant_w=quant_w, quant_a=quant_a, threshold_w=threshold_w, threshold_a=threshold_a,
+            inputs = self.conv_block_low(inputs, 512, 3, (1, 1, 1, 1), 'conv5_3', qw_en=qw_en, qa_en=qa_en, qw_bits=qw_bits, qa_bits=qa_bits, pw_en=pw_en, pa_en=pa_en, threshold_w=threshold_w, threshold_a=threshold_a,
                                          begin_pruning=begin_pruning, end_pruning=end_pruning, pruning_frequency=pruning_frequency, target_sparsity=target_sparsity)
         inputs = self._pool5.apply(inputs)
         # forward fc layers
         dilation = [1, 6, 6, 6]
         dilation[self._bn_axis] = 1
-        inputs = self.conv_block_low(inputs, filters=1024, threshold_w=threshold_w, threshold_a=threshold_a, kernel_size=3, strides=[1, 1, 1, 1], padding='SAME', dilations=dilation,
-                                     activation=tf.nn.relu, batch_norm=False, use_bias=True, quant_w=quant_w, quant_a=quant_a, name='fc6', reuse=None, begin_pruning=begin_pruning, end_pruning=end_pruning, pruning_frequency=pruning_frequency, target_sparsity=target_sparsity)
-        inputs = self.conv_block_low(inputs, filters=1024, threshold_w=threshold_w, threshold_a=threshold_a, kernel_size=1, strides=[1, 1, 1, 1], padding='SAME',
-                                     activation=tf.nn.relu, batch_norm=False, use_bias=True, quant_w=quant_w, quant_a=quant_a, name='fc7', reuse=None, begin_pruning=begin_pruning, end_pruning=end_pruning, pruning_frequency=pruning_frequency, target_sparsity=target_sparsity)
+        inputs = self.conv_block_low(inputs, filters=1024, kernel_size=3, strides=[1, 1, 1, 1], padding='SAME', dilations=dilation,
+                                     activation=tf.nn.relu, batch_norm=False, use_bias=True, qw_en=qw_en, qa_en=qa_en, qw_bits=qw_bits, qa_bits=qa_bits, pw_en=pw_en, pa_en=pa_en, threshold_w=threshold_w, threshold_a=threshold_a, name='fc6', reuse=None, begin_pruning=begin_pruning, end_pruning=end_pruning, pruning_frequency=pruning_frequency, target_sparsity=target_sparsity)
+        inputs = self.conv_block_low(inputs, filters=1024, kernel_size=1, strides=[1, 1, 1, 1], padding='SAME',
+                                     activation=tf.nn.relu, batch_norm=False, use_bias=True, qw_en=qw_en, qa_en=qa_en, qw_bits=qw_bits, qa_bits=qa_bits, pw_en=pw_en, pa_en=pa_en, threshold_w=threshold_w, threshold_a=threshold_a, name='fc7', reuse=None, begin_pruning=begin_pruning, end_pruning=end_pruning, pruning_frequency=pruning_frequency, target_sparsity=target_sparsity)
         # fc7
         feature_layers.append(inputs)
 
@@ -174,40 +174,40 @@ class VGG16Backbone(object):
             with tf.variable_scope('conv8') as scope:
                 stride = [1, 2, 2, 2]
                 stride[self._bn_axis] = 1
-                inputs = self.conv_block_low(inputs=inputs, filters=256, threshold_w=threshold_w, threshold_a=threshold_a, kernel_size=1, strides=(
+                inputs = self.conv_block_low(inputs=inputs, filters=256, qw_en=qw_en, qa_en=qa_en, qw_bits=qw_bits, qa_bits=qa_bits, pw_en=pw_en, pa_en=pa_en, threshold_w=threshold_w, threshold_a=threshold_a, kernel_size=1, strides=(
                     1, 1, 1, 1), use_bias=True, name='conv8_1', begin_pruning=begin_pruning, end_pruning=end_pruning, pruning_frequency=pruning_frequency, target_sparsity=target_sparsity)
-                inputs = self.conv_block_low(inputs=inputs, filters=512, threshold_w=threshold_w, threshold_a=threshold_a, kernel_size=3, strides=stride, use_bias=True, quant_w=quant_w,
-                                             quant_a=quant_a, name='conv8_2', begin_pruning=begin_pruning, end_pruning=end_pruning, pruning_frequency=pruning_frequency, target_sparsity=target_sparsity)
+                inputs = self.conv_block_low(inputs=inputs, filters=512, qw_en=qw_en, qa_en=qa_en, qw_bits=qw_bits,
+                                             qa_bits=qa_bits, pw_en=pw_en, pa_en=pa_en, threshold_w=threshold_w, threshold_a=threshold_a, kernel_size=3, strides=stride, use_bias=True, name='conv8_2', begin_pruning=begin_pruning, end_pruning=end_pruning, pruning_frequency=pruning_frequency, target_sparsity=target_sparsity)
             # conv8
             feature_layers.append(inputs)
             with tf.variable_scope('conv9') as scope:
                 stride = [1, 2, 2, 2]
                 stride[self._bn_axis] = 1
-                inputs = self.conv_block_low(inputs=inputs, filters=128, threshold_w=threshold_w, threshold_a=threshold_a, kernel_size=1, strides=(
+                inputs = self.conv_block_low(inputs=inputs, filters=128, qw_en=qw_en, qa_en=qa_en, qw_bits=qw_bits, qa_bits=qa_bits, pw_en=pw_en, pa_en=pa_en, threshold_w=threshold_w, threshold_a=threshold_a, kernel_size=1, strides=(
                     1, 1, 1, 1), use_bias=True, name='conv9_1', begin_pruning=begin_pruning, end_pruning=end_pruning, pruning_frequency=pruning_frequency, target_sparsity=target_sparsity)
-                inputs = self.conv_block_low(inputs=inputs, filters=256, threshold_w=threshold_w, threshold_a=threshold_a, kernel_size=3, strides=stride, use_bias=True, quant_w=quant_w,
-                                             quant_a=quant_a, name='conv9_2', begin_pruning=begin_pruning, end_pruning=end_pruning, pruning_frequency=pruning_frequency, target_sparsity=target_sparsity)
+                inputs = self.conv_block_low(inputs=inputs, filters=256, qw_en=qw_en, qa_en=qa_en, qw_bits=qw_bits,
+                                             qa_bits=qa_bits, pw_en=pw_en, pa_en=pa_en, threshold_w=threshold_w, threshold_a=threshold_a, kernel_size=3, strides=stride, use_bias=True, name='conv9_2', begin_pruning=begin_pruning, end_pruning=end_pruning, pruning_frequency=pruning_frequency, target_sparsity=target_sparsity)
             # conv9
             feature_layers.append(inputs)
             with tf.variable_scope('conv10') as scope:
-                inputs = self.conv_block_low(inputs=inputs, filters=128, threshold_w=threshold_w, threshold_a=threshold_a, kernel_size=1, strides=(1, 1, 1, 1), use_bias=True, quant_w=quant_w,
-                                             quant_a=quant_a, name='conv10_1', padding='VALID', begin_pruning=begin_pruning, end_pruning=end_pruning, pruning_frequency=pruning_frequency, target_sparsity=target_sparsity)
-                inputs = self.conv_block_low(inputs=inputs, filters=256, threshold_w=threshold_w, threshold_a=threshold_a, kernel_size=3, strides=(1, 1, 1, 1), use_bias=True, quant_w=quant_w,
-                                             quant_a=quant_a, name='conv10_2', padding='VALID', begin_pruning=begin_pruning, end_pruning=end_pruning, pruning_frequency=pruning_frequency, target_sparsity=target_sparsity)
+                inputs = self.conv_block_low(inputs=inputs, filters=128, qw_en=qw_en, qa_en=qa_en, qw_bits=qw_bits,
+                                             qa_bits=qa_bits, pw_en=pw_en, pa_en=pa_en, threshold_w=threshold_w, threshold_a=threshold_a, kernel_size=1, strides=(1, 1, 1, 1), use_bias=True, name='conv10_1', padding='VALID', begin_pruning=begin_pruning, end_pruning=end_pruning, pruning_frequency=pruning_frequency, target_sparsity=target_sparsity)
+                inputs = self.conv_block_low(inputs=inputs, filters=256, qw_en=qw_en, qa_en=qa_en, qw_bits=qw_bits,
+                                             qa_bits=qa_bits, pw_en=pw_en, pa_en=pa_en, threshold_w=threshold_w, threshold_a=threshold_a, kernel_size=3, strides=(1, 1, 1, 1), use_bias=True, name='conv10_2', padding='VALID', begin_pruning=begin_pruning, end_pruning=end_pruning, pruning_frequency=pruning_frequency, target_sparsity=target_sparsity)
             # conv10
             feature_layers.append(inputs)
             with tf.variable_scope('conv11') as scope:
-                inputs = self.conv_block_low(inputs=inputs, filters=128, threshold_w=threshold_w, threshold_a=threshold_a, kernel_size=1, strides=(1, 1, 1, 1), use_bias=True, quant_w=quant_w,
-                                             quant_a=quant_a, name='conv11_1', padding='VALID', begin_pruning=begin_pruning, end_pruning=end_pruning, pruning_frequency=pruning_frequency, target_sparsity=target_sparsity)
-                inputs = self.conv_block_low(inputs=inputs, filters=256, threshold_w=threshold_w, threshold_a=threshold_a, kernel_size=3, strides=(1, 1, 1, 1), use_bias=True, quant_w=quant_w,
-                                             quant_a=quant_a, name='conv11_2', padding='VALID', begin_pruning=begin_pruning, end_pruning=end_pruning, pruning_frequency=pruning_frequency, target_sparsity=target_sparsity)
+                inputs = self.conv_block_low(inputs=inputs, filters=128, qw_en=qw_en, qa_en=qa_en, qw_bits=qw_bits,
+                                             qa_bits=qa_bits, pw_en=pw_en, pa_en=pa_en, threshold_w=threshold_w, threshold_a=threshold_a, kernel_size=1, strides=(1, 1, 1, 1), use_bias=True, name='conv11_1', padding='VALID', begin_pruning=begin_pruning, end_pruning=end_pruning, pruning_frequency=pruning_frequency, target_sparsity=target_sparsity)
+                inputs = self.conv_block_low(inputs=inputs, filters=256, qw_en=qw_en, qa_en=qa_en, qw_bits=qw_bits,
+                                             qa_bits=qa_bits, pw_en=pw_en, pa_en=pa_en, threshold_w=threshold_w, threshold_a=threshold_a, kernel_size=3, strides=(1, 1, 1, 1), use_bias=True, name='conv11_2', padding='VALID', begin_pruning=begin_pruning, end_pruning=end_pruning, pruning_frequency=pruning_frequency, target_sparsity=target_sparsity)
             # conv11
             feature_layers.append(inputs)
 
         return feature_layers
 
 # A block which generates the low precision weights and convolves them with the input
-    def conv_block_low(self, inputs, filters, kernel_size, strides, name, quant_w=32, quant_a=32, threshold_w=0, threshold_a=0, padding='SAME', dilations=[1, 1, 1, 1],
+    def conv_block_low(self, inputs, filters, kernel_size, strides, name, qw_en=False, qa_en=False, qw_bits=32, qa_bits=32, pw_en=False, pa_en=False, threshold_w=0, threshold_a=0, padding='SAME', dilations=[1, 1, 1, 1],
                        activation=tf.nn.relu, batch_norm=True, use_bias=True, reuse=None, begin_pruning=0, end_pruning=0, pruning_frequency=0, target_sparsity=0):
         with tf.variable_scope(name):
             data_format = "NHWC" if self._data_format == 'channels_last' else "NCHW"
@@ -217,7 +217,7 @@ class VGG16Backbone(object):
             tf.summary.histogram("weights_r", conv_filter)
             with tf.variable_scope("quantize_weights"):
                 weights_q = q.quantize_and_prune_weights(
-                    conv_filter, quant_w, threshold_w, begin_pruning, end_pruning, pruning_frequency, target_sparsity)  # quantize the weights
+                    w=conv_filter, qw_en=qw_en, k=qw_bits, pw_en=pw_en, thresh=threshold_w, begin_pruning=begin_pruning, end_pruning=end_pruning, pruning_frequency=pruning_frequency, target_sparsity=target_sparsity)  # quantize the weights
             tf.summary.histogram("weights_q", weights_q)
             bias = tf.get_variable('bias', filters)
             conv = tf.nn.conv2d(input=inputs, filter=weights_q, strides=strides, padding=padding, use_cudnn_on_gpu=True,
@@ -225,11 +225,12 @@ class VGG16Backbone(object):
             tf.summary.histogram("act", conv)
             conv = tf.nn.bias_add(conv, bias, data_format=data_format)
             if batch_norm:
-                conv = tf.layers.batch_normalization(conv, axis=self._bn_axis, momentum=_BATCH_NORM_DECAY, epsilon=_BATCH_NORM_EPSILON, fused=_USE_FUSED_BN, reuse=None)
+                conv = tf.layers.batch_normalization(
+                    conv, axis=self._bn_axis, momentum=_BATCH_NORM_DECAY, epsilon=_BATCH_NORM_EPSILON, fused=_USE_FUSED_BN, reuse=None)
             tf.summary.histogram("act_bn", conv)
             with tf.variable_scope("quantize_activations"):
                 conv = q.quantize_and_prune_activations(
-                    conv, quant_a, threshold_a, begin_pruning, end_pruning, pruning_frequency, target_sparsity)
+                    a=conv, qa_en=qa_en, k=qa_bits, pa_en=pa_en, thresh=threshold_a, begin_pruning=begin_pruning, end_pruning=end_pruning, pruning_frequency=pruning_frequency, target_sparsity=target_sparsity)
             tf.summary.histogram("act_bn_q", conv)
             conv = tf.nn.relu(conv)
             tf.summary.histogram("act_bn_q_r", conv)
@@ -248,7 +249,7 @@ class VGG16Backbone(object):
                                 data_format=data_format, dilations=dilations, name=name)
             tf.summary.histogram("act", conv)
             conv = tf.nn.bias_add(conv, bias, data_format=data_format)
-            #if batch_norm:
+            # if batch_norm:
             #    conv = tf.layers.batch_normalization(conv, axis=self._bn_axis, momentum=_BATCH_NORM_DECAY, epsilon=_BATCH_NORM_EPSILON, fused=_USE_FUSED_BN, reuse=None)
             #tf.summary.histogram("act_bn", conv)
             conv = tf.nn.relu(conv)

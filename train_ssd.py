@@ -127,25 +127,42 @@ tf.app.flags.DEFINE_boolean(
 tf.app.flags.DEFINE_boolean(
     'multi_gpu', True,
     'Whether there is GPU to use for training.')
-# Added new flag to allow specification which GPUs to use
+
+################################################################################
+## Daniel's Custom Added flags                                                ##
+################################################################################
+
 tf.app.flags.DEFINE_string(
     'specify_gpu', '0',
     'Which GPU(s) to use, in a string (e.g. `0,1,2`) If `None`, uses all available.')
-# Added new flag to allow specification of low or high precision
-# Added flag to toggle imgnet dataset load from server
-tf.app.flags.DEFINE_boolean(
-    'imgnet', False,
-    'Whether to use the imgnet dataset on the server.')
 tf.app.flags.DEFINE_float(
     'add_noise', None,
     'Whether to add gaussian noise to the imageset prior to training.')
+tf.app.flags.DEFINE_boolean(
+    'auto_flags', False,
+    'Let the program guess appropriate flags for you? Recommended unless you want something specific.')
+
+# Quantization parameters
+tf.app.flags.DEFINE_boolean(
+    'qw_en', False,
+    'If True, enables quantization of network weights. Use flag `qw_bits` to set the number of quantization bits.')
+tf.app.flags.DEFINE_boolean(
+    'qa_en', False,
+    'If True, enables quantization of network activations. Use flag `qa_bits` to set the number of quantization bits.')
 tf.app.flags.DEFINE_integer(
-    'quant_w', 32,
-    'Number of quantization bits to quantize the network weights to.')
+    'qw_bits', 32,
+    'Number of quantization bits to allocate to the network weights.')
 tf.app.flags.DEFINE_integer(
-    'quant_a', 32,
-    'Number of quantization bits to quantize the network activations to.')
-# Pruning flags
+    'qa_bits', 32,
+    'Number of quantization bits to allocate to the network activations.')
+
+# Pruning parameters
+tf.app.flags.DEFINE_boolean(
+    'pw_en', False,
+    'If True, enables pruning of network weights. Use pruning parameters below to fine-tune behaviour.')
+tf.app.flags.DEFINE_boolean(
+    'pa_en', False,
+    'If True, enables pruning of network activations. Use pruning parameters below to fine-tune behaviour.')
 tf.app.flags.DEFINE_float(
     'threshold_w', 0,
     'Pruning threshold under which to zero out the weights to.')
@@ -164,20 +181,9 @@ tf.app.flags.DEFINE_integer(
 tf.app.flags.DEFINE_float(
     'target_sparsity', 0.5,
     'Specify the target sparsity for pruning such that pruning will stop once the weight and activation-sparsity reaches this value.')
-tf.app.flags.DEFINE_boolean(
-    'auto_flags', True,
-    'Let the program guess appropriate flags for you? Recommended unless you know what you are doing.')
 
 
 FLAGS = tf.app.flags.FLAGS
-
-if FLAGS.imgnet:
-    FLAGS.data_dir = '/opt/datasets/imgnet-data'
-
-if FLAGS.auto_flags:
-    FLAGS.max_number_of_steps = 120000 * (32 / FLAGS.batch_size)
-    FLAGS.begin_pruning_at_step = np.ceil(0.05*FLAGS.max_number_of_steps)
-    FLAGS.end_pruning_at_step = np.ceil(0.9 * FLAGS.max_number_of_steps)
 
 # CUDA_VISIBLE_DEVICES
 
@@ -258,7 +264,6 @@ def input_pipeline(dataset_pattern='train-*', add_noise=FLAGS.add_noise, is_trai
 
         #image_preprocessing_fn = lambda image_, labels_, bboxes_ : ssd_preprocessing.preprocess_image(image_, labels_, bboxes_, out_shape, add_noise=FLAGS.add_noise, is_training=is_training, data_format=FLAGS.data_format, output_rgb=False)
         #anchor_encoder_fn = lambda glabels_, gbboxes_: anchor_encoder_decoder.encode_all_anchors(glabels_, gbboxes_, all_anchors, all_num_anchors_depth, all_num_anchors_spatial)
-
 
         image, _, shape, loc_targets, cls_targets, match_scores = dataset_common.slim_get_batch(FLAGS.num_classes,
                                                                                                 batch_size,
@@ -346,7 +351,7 @@ def ssd_model_fn(features, labels, mode, params):
     # print(all_num_anchors_depth)
     with tf.variable_scope(params['model_scope'], default_name=None, values=[features], reuse=tf.AUTO_REUSE):
         backbone = ssd_net_low.VGG16Backbone(params['data_format'])
-        feature_layers = backbone.forward(features, quant_w=FLAGS.quant_w, quant_a=FLAGS.quant_a, threshold_w=FLAGS.threshold_w, threshold_a=FLAGS.threshold_a,
+        feature_layers = backbone.forward(features, qw_en=FLAGS.qw_en, qa_en=FLAGS.qa_en, qw_bits=FLAGS.qw_bits, qa_bits=FLAGS.qa_bits, pw_en=FLAGS.pw_en, pa_en=FLAGS.pa_en, threshold_w=FLAGS.threshold_w, threshold_a=FLAGS.threshold_a,
                                           begin_pruning=FLAGS.begin_pruning_at_step, end_pruning=FLAGS.end_pruning_at_step, pruning_frequency=FLAGS.pruning_frequency, target_sparsity=FLAGS.target_sparsity, training=(mode == tf.estimator.ModeKeys.TRAIN))
         location_pred, cls_pred = ssd_net_low.multibox_head(
             feature_layers, params['num_classes'], all_num_anchors_depth, data_format=params['data_format'])
@@ -592,6 +597,12 @@ def main(_):
 
 
 if __name__ == '__main__':
+
+    if FLAGS.auto_flags:
+        FLAGS.max_number_of_steps = 120000 * (32 / FLAGS.batch_size)
+        FLAGS.begin_pruning_at_step = np.ceil(0.05 * FLAGS.max_number_of_steps)
+        FLAGS.end_pruning_at_step = np.ceil(0.9 * FLAGS.max_number_of_steps)
+
     tf.logging.set_verbosity(tf.logging.INFO)
     tf.app.run()
 

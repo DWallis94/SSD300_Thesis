@@ -11,28 +11,30 @@ C) Teacher student
 import tensorflow as tf
 import numpy as np
 
-
-def quantize_and_prune_weights(w, k, thresh, begin_pruning, end_pruning, pruning_frequency, target_sparsity):
+################################################################################
+## High level Quantization and Pruning functions                              ##
+################################################################################
+def quantize_and_prune_weights(w, qw_en, k, pw_en, thresh, begin_pruning, end_pruning, pruning_frequency, target_sparsity):
     """
     Implements quantization and pruning as appropriate for weights.
     """
     #w_norm = rescale(w, [-1, 1])
     #w_norm = tf.clip_by_value(w, -1, 1)
     w_norm = w
-    if thresh == 0 and k == 32:
+    w_range = tf.reduce_max(w_norm) - tf.reduce_min(w_norm)
+    thresh_dynamic = (abs(thresh)/2)*w_range
+    if not (qw_en or pw_en):
         ## Don't quantize or prune
         return w_norm
-    elif thresh == 0:
+    elif not pw_en:
         ## Quantize
         w_quant = quantize_midtread_unbounded(w_norm, k) # quantize entire weight range
         return stop_grad(w, w_quant)
-    elif k == 32:
+    elif not qw_en:
         ## Prune
-        w_range = tf.reduce_max(w_norm) - tf.reduce_min(w_norm)
-        thresh_dynamic = (abs(thresh)/2)*w_range
-        thresh_dynamic = tf.Print(thresh_dynamic, [thresh_dynamic])
-        w_prune = prune_simplest(w_norm, [-thresh_dynamic, thresh_dynamic]) # Set all weights within specified region to zero
-        w_prune = prune_simple_stochastic(w_norm, [-thresh_dynamic, thresh_dynamic]) # Round all weights within specified region stochastically
+        w_prune = prune_simple_ish(w_norm, [-thresh_dynamic, thresh_dynamic], begin_pruning, pruning_frequency)
+        #w_prune = prune_simplest(w_norm, [-thresh_dynamic, thresh_dynamic]) # Set all weights within specified region to zero
+        #w_prune = prune_simple_stochastic(w_norm, [-thresh_dynamic, thresh_dynamic]) # Round all weights within specified region stochastically
         #w_prune = prune_region(w_norm, [-abs(thresh), abs(thresh)], target_sparsity, begin_pruning, end_pruning, pruning_frequency) # Ideal pruning (but extremely memory inefficient)
         return stop_grad(w, w_prune)
     else:
@@ -42,28 +44,31 @@ def quantize_and_prune_weights(w, k, thresh, begin_pruning, end_pruning, pruning
         w_Q_pos = quantize_region_midtread_unbounded_pos(w_norm, np.ceil((k - 1) / 2), abs(thresh)) # Positive quant region
         w_Q_pos_neg = quantize_region_midtread_unbounded_neg(w_Q_pos, np.floor((k - 1) / 2), -abs(thresh)) # Negative quant region
         #w_Q_P_pos_neg = prune_region(w_Q_pos_neg, [-abs(thresh), abs(thresh)], target_sparsity, begin_pruning, end_pruning, pruning_frequency, quant_force_val_pos, quant_force_val_neg) # Prune region close to zero
-        w_Q_P_pos_neg = prune_simplest(w_Q_pos_neg, [-abs(thresh), abs(thresh)])
+        w_Q_P_pos_neg = prune_simple_ish(w_Q_pos_neg, [-thresh_dynamic, thresh_dynamic], begin_pruning, pruning_frequency)
         return stop_grad(w, w_Q_P_pos_neg)
 
 
-def quantize_and_prune_activations(a, k, thresh, begin_pruning, end_pruning, pruning_frequency, target_sparsity):
+def quantize_and_prune_activations(a, qa_en, k, pa_en, thresh, begin_pruning, end_pruning, pruning_frequency, target_sparsity):
     """
     Implements quantization and pruning as appropriate for activations.
     """
     #a_norm = rescale(a, [0, 1])
     #a_norm = tf.clip_by_value(a, 0, 1)
     a_norm = a
-    if thresh == 0 and k == 32:
+    a_range = tf.reduce_max(a_norm) - tf.reduce_min(a_norm)
+    thresh_dynamic = (abs(thresh)/2)*a_range
+    if not (qa_en or pa_en):
         ## Don't quantize or prune
         return a_norm
-    elif thresh == 0:
+    elif not pa_en:
         ## Quantize
         a_quant = quantize_region_midtread_unbounded_pos(a_norm, k, 0) # quantize positive activation range
         return stop_grad(a, a_quant)
-    elif k == 32:
+    elif not qa_en:
         ## Prune
+        a_prune = prune_simple_ish(a_norm, [-thresh_dynamic, thresh_dynamic], begin_pruning, pruning_frequency)
         #a_prune = prune_simplest(a_norm, [0, abs(thresh)])
-        a_prune = prune_simple_stochastic(a_norm, [0, abs(thresh)])
+        #a_prune = prune_simple_stochastic(a_norm, [0, abs(thresh)])
         #a_prune = prune_region(a_norm, [0, abs(thresh)], target_sparsity, begin_pruning, end_pruning, pruning_frequency)
         return stop_grad(a, a_prune)
     else:
@@ -71,13 +76,20 @@ def quantize_and_prune_activations(a, k, thresh, begin_pruning, end_pruning, pru
         #quant_force_val = abs(thresh) + (1 - abs(thresh))/2**(k-1)
         a_Q = quantize_region_midtread_unbounded_pos(a_norm, k - 1, abs(thresh)) # quantize positive activation region
         #a_Q_P = prune_region(a_Q, [0, abs(thresh)], target_sparsity, begin_pruning, end_pruning, pruning_frequency, quant_force_val, 0) # Prune region close to zero
-        a_Q_P = prune_simplest(a_Q, [0, abs(thresh)])
+        a_Q_P = prune_simple_ish(a_Q, [0, thresh_dynamic], begin_pruning, pruning_frequency)
         return stop_grad(a, a_Q_P)
 
 
+################################################################################
+## Custom Quantization functions                                              ##
+################################################################################
 def quantize_region_midrise(zr, k, quant_range, epsilon=1e-12):
     """
-    Given a tensor `zr`, number of bits `k`, and quantization range `quant_range`, quantizes all values within this region to the preset number of bits, leaving values in non-specified regions un-quantized.
+    Quantizes all values in a tensor with magitude within a given range.
+
+    Uses midrise quantization method.
+
+    Returns values outside the specified range unmodified.
     """
     min_val = quant_range[0]
     max_val = quant_range[1]
@@ -92,7 +104,11 @@ def quantize_region_midrise(zr, k, quant_range, epsilon=1e-12):
 
 def quantize_region_midtread(zr, k, quant_range, epsilon=1e-12):
     """
-    Given a tensor `zr`, number of bits `k`, and quantization range `quant_range`, quantizes all values within this region to the preset number of bits, leaving values in non-specified regions un-quantized.
+    Quantizes all values in a tensor with magitude within a given range.
+
+    Uses midtread quantization method.
+
+    Returns values outside the specified range unmodified.
     """
     min_val = quant_range[0]
     max_val = quant_range[1]
@@ -105,7 +121,11 @@ def quantize_region_midtread(zr, k, quant_range, epsilon=1e-12):
 
 def quantize_region_midtread_unbounded_pos(zr, k, quant_thresh, epsilon=1e-12):
     """
-    Given a tensor `zr`, number of bits `k`, and quantization range `quant_range`, quantizes all values within this region to the preset number of bits, leaving values in non-specified regions un-quantized.
+    Quantizes all values in a tensor with magitude greater than a set threshold.
+
+    Uses midtread quantization method.
+
+    Returns values less than the threshold unmodified.
     """
     min_bound = quant_thresh
     max_bound = tf.reduce_max(zr)
@@ -120,7 +140,11 @@ def quantize_region_midtread_unbounded_pos(zr, k, quant_thresh, epsilon=1e-12):
 
 def quantize_region_midtread_unbounded_neg(zr, k, quant_thresh, epsilon=1e-12):
     """
-    Given a tensor `zr`, number of bits `k`, and quantization range `quant_range`, quantizes all values within this region to the preset number of bits, leaving values in non-specified regions un-quantized.
+    Quantizes all values in a tensor with magitude less than a set threshold.
+
+    Uses midtread quantization method.
+
+    Returns values greater than the threshold unmodified.
     """
     min_bound = tf.reduce_min(zr)
     max_bound = quant_thresh
@@ -135,7 +159,9 @@ def quantize_region_midtread_unbounded_neg(zr, k, quant_thresh, epsilon=1e-12):
 
 def quantize_midtread_unbounded(zr, k, epsilon=1e-12):
     """
-    Given a tensor `zr`, number of bits `k`, and quantization range `quant_range`, quantizes all values within this region to the preset number of bits, leaving values in non-specified regions un-quantized.
+    Quantizes all values in a tensor.
+
+    Uses midtread quantization method.
     """
     min_bound = tf.reduce_min(zr)
     max_bound = tf.reduce_max(zr)
@@ -148,9 +174,17 @@ def quantize_midtread_unbounded(zr, k, epsilon=1e-12):
 
     return zr_quant
 
+
+################################################################################
+## Custom Pruning functions                                                   ##
+################################################################################
 def prune_region(zr, prune_range, target_sparsity, begin_pruning, end_pruning, pruning_frequency, quant_force_val_pos=0, quant_force_val_neg=0, epsilon=1e-12):
     """
-    Prunes a given tensor within the range specified, returns the other regions unpruned.
+    Prunes a given tensor within the range specified.
+
+    Returns the other regions unpruned.
+
+    Note: Complicated, inefficient pruning. Not recommended for memory reasons.
     """
 
     min_val = prune_range[0]
@@ -185,7 +219,11 @@ def prune_region(zr, prune_range, target_sparsity, begin_pruning, end_pruning, p
 
 def prune_simplest(zr, prune_range, epsilon=1e-12):
     """
-    Prunes a given tensor within the range specified, returns the other regions unpruned.
+    Prunes a given tensor within the range specified.
+
+    Returns the other regions unpruned.
+
+    Uses `set-to-zero` simple pruning.
     """
     min_val = prune_range[0]
     max_val = prune_range[1]
@@ -193,7 +231,11 @@ def prune_simplest(zr, prune_range, epsilon=1e-12):
 
 def prune_simple_stochastic(zr, prune_range, quant_force_val_pos=0, quant_force_val_neg=0, epsilon=1e-12):
     """
-    Prunes a given tensor within the range specified, returns the other regions unpruned.
+    Prunes a given tensor within the range specified.
+
+    Returns the other regions unpruned.
+
+    Uses stochastic rounding.
     """
     min_val = prune_range[0]
     max_val = prune_range[1]
@@ -202,9 +244,64 @@ def prune_simple_stochastic(zr, prune_range, quant_force_val_pos=0, quant_force_
     mapped_stoch_tensor = stoch_tensor * mapped_tensor
     return tf.where(tf.logical_and(tf.greater_equal(zr, min_val - epsilon), tf.less_equal(zr, max_val + epsilon)), mapped_stoch_tensor, zr)
 
+def prune_simple_ish_stochastic(zr, prune_range, pruning_frequency, epsilon=1e-12):
+    """
+    Prunes a given tensor within the range specified.
+
+    Returns the other regions unpruned.
+
+    Uses stochastic rounding, prunes on a schedule.
+    """
+
+    def prune_stochastic(zr, prune_range):
+        min_val = prune_range[0]
+        max_val = prune_range[1]
+        stoch_tensor = zr * stochastic_round_tensor(zr)
+        return tf.where(tf.logical_and(tf.greater_equal(zr, min_val), tf.less_equal(zr, max_val)), stoch_tensor, zr)
+    def dont_prune(zr): return zr
+    global_step = tf.cast(tf.train.get_global_step(), tf.int32)
+    cond = tf.reduce_all(tf.equal(tf.mod(global_step, pruning_frequency), tf.zeros(shape=tf.shape(global_step), dtype=tf.int32)))
+    return tf.cond(cond, lambda: prune_stochastic(zr, prune_range), lambda: dont_prune(zr))
+
+def prune_simple_ish(zr, prune_range, begin_pruning, pruning_frequency, epsilon=1e-12):
+    """
+    Prunes a given tensor within the range specified.
+
+    Returns the other regions unpruned.
+
+    Uses simple rounding, prunes on a schedule.
+    """
+
+    def prune_simple(zr, prune_range):
+        min_val = prune_range[0]
+        max_val = prune_range[1]
+        return tf.where(tf.logical_and(tf.greater_equal(zr, min_val), tf.less_equal(zr, max_val)), tf.zeros(shape=tf.shape(zr)), zr)
+    def dont_prune(zr): return zr
+    global_step = tf.cast(tf.train.get_global_step(), tf.int32)
+    cond = tf.reduce_all(tf.logical_and(tf.equal(tf.mod(global_step, pruning_frequency), tf.zeros(shape=tf.shape(global_step), dtype=tf.int32)), tf.greater_equal(global_step, begin_pruning)))
+    return tf.cond(cond, lambda: prune_simple(zr, prune_range), lambda: dont_prune(zr))
+
+def stochastic_round_tensor(x):
+    """
+    Low-level stochastic rounding function.
+
+    Given a tensor x, stochastically rounds between 1 and zero depending on magnitude.
+    """
+    x_abs = tf.math.abs(x)
+    rand = tf.random_uniform(shape=tf.shape(x), maxval=1)
+    #prob_0 = 1 - (x_abs - tf.floor(x_abs)) # Useful to know, but not used in this implementation. So save memory by commenting it out!
+    prob_1 = x - tf.floor(x_abs)
+    x_rounded = tf.where(tf.less(rand, prob_1), tf.ones(shape=tf.shape(x)), tf.zeros(shape=tf.shape(x)))
+    return x_rounded
+
+
+################################################################################
+## Miscellaneous Custom functions                                             ##
+################################################################################
 def rescale(x, rescale_range, epsilon=1e-12):
     """
-    Given an input tensor `x`, a target range `rescale_range`, and epsilon value, rescales the tensor such that the minimum value is mapped to rescale_range[0] and maximum value to rescale_range[1].
+    Rescales a tensor such that the minimum value is mapped to rescale_range[0] and maximum value to rescale_range[1].
+
     NB: Epsilon prevents 0/0 error.
     """
     l = rescale_range[0]
@@ -216,21 +313,14 @@ def rescale(x, rescale_range, epsilon=1e-12):
 
 def stop_grad(real, quant):
     """
-    Needed for backpropogation.
+    Returns full-precision on back-propagation to prevent disappearing gradient.
     """
     return real + tf.stop_gradient(quant - real)
 
-def stochastic_round_tensor(x):
-    """
-    Given a tensor x, stochastically rounds between x and zero depending on magnitude.
-    """
-    x_abs = tf.math.abs(x)
-    rand = tf.random_uniform(shape=tf.shape(x), maxval=1)
-    #prob_0 = 1 - (x_abs - tf.floor(x_abs)) # Useful to know, but not used in this implementation. So save memory by commenting it out!
-    prob_1 = x - tf.floor(x_abs)
-    x_rounded = tf.where(tf.less(rand, prob_1), tf.ones(shape=tf.shape(x)), tf.zeros(shape=tf.shape(x)))
-    return x_rounded
 
+################################################################################
+## Deprecated functions                                                       ##
+################################################################################
 def quantize_old( zr, k ):
     """
     Deprecated. Use quantize instead.

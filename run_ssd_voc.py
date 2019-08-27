@@ -80,13 +80,28 @@ tf.app.flags.DEFINE_string(
 tf.app.flags.DEFINE_float(
     'add_noise', None,
     'Whether to add gaussian noise to the imageset prior to training.')
+
+# Quantization parameters
+tf.app.flags.DEFINE_boolean(
+    'qw_en', False,
+    'If True, enables quantization of network weights. Use flag `qw_bits` to set the number of quantization bits.')
+tf.app.flags.DEFINE_boolean(
+    'qa_en', False,
+    'If True, enables quantization of network activations. Use flag `qa_bits` to set the number of quantization bits.')
 tf.app.flags.DEFINE_integer(
-    'quant_w', 32,
-    'Number of quantization bits to quantize the network weights to.')
+    'qw_bits', 32,
+    'Number of quantization bits to allocate to the network weights.')
 tf.app.flags.DEFINE_integer(
-    'quant_a', 32,
-    'Number of quantization bits to quantize the network activations to.')
-# Pruning flags
+    'qa_bits', 32,
+    'Number of quantization bits to allocate to the network activations.')
+
+# Pruning parameters
+tf.app.flags.DEFINE_boolean(
+    'pw_en', False,
+    'If True, enables pruning of network weights. Use pruning parameters below to fine-tune behaviour.')
+tf.app.flags.DEFINE_boolean(
+    'pa_en', False,
+    'If True, enables pruning of network activations. Use pruning parameters below to fine-tune behaviour.')
 tf.app.flags.DEFINE_float(
     'threshold_w', 0,
     'Pruning threshold under which to zero out the weights to.')
@@ -317,7 +332,7 @@ def main(_):
 
         with tf.variable_scope(FLAGS.model_scope, default_name=None, values=[features], reuse=tf.AUTO_REUSE):
             backbone = ssd_net_low.VGG16Backbone(params['data_format'])
-            feature_layers = backbone.forward(features, quant_w=FLAGS.quant_w, quant_a=FLAGS.quant_a, threshold_w=FLAGS.threshold_w, threshold_a=FLAGS.threshold_a,
+            feature_layers = backbone.forward(features, qw_en=FLAGS.qw_en, qa_en=FLAGS.qa_en, qw_bits=FLAGS.qw_bits, qa_bits=FLAGS.qa_bits, pw_en=FLAGS.pw_en, pa_en=FLAGS.pa_en, threshold_w=FLAGS.threshold_w, threshold_a=FLAGS.threshold_a,
                                               begin_pruning=FLAGS.begin_pruning_at_step, end_pruning=FLAGS.end_pruning_at_step, pruning_frequency=FLAGS.pruning_frequency, target_sparsity=FLAGS.target_sparsity, training=(mode == tf.estimator.ModeKeys.TRAIN))
             location_pred, cls_pred = ssd_net_low.multibox_head(
                 feature_layers, params['num_classes'], all_num_anchors_depth, data_format=params['data_format'])
