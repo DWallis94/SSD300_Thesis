@@ -224,16 +224,16 @@ class VGG16Backbone(object):
                                 data_format=data_format, dilations=dilations, name=name)
             tf.summary.histogram("act", conv)
             conv = tf.nn.bias_add(conv, bias, data_format=data_format)
-            if batch_norm:
-                conv = tf.layers.batch_normalization(
-                    conv, axis=self._bn_axis, momentum=_BATCH_NORM_DECAY, epsilon=_BATCH_NORM_EPSILON, fused=_USE_FUSED_BN, reuse=None)
-            tf.summary.histogram("act_bn", conv)
+            #if batch_norm:
+            #    conv = tf.layers.batch_normalization(
+            #        conv, axis=self._bn_axis, momentum=_BATCH_NORM_DECAY, epsilon=_BATCH_NORM_EPSILON, fused=_USE_FUSED_BN, reuse=None)
+            #tf.summary.histogram("act_bn", conv)
             with tf.variable_scope("quantize_activations"):
                 conv = q.quantize_and_prune_activations(
                     a=conv, qa_en=qa_en, k=qa_bits, pa_en=pa_en, thresh=threshold_a, begin_pruning=begin_pruning, end_pruning=end_pruning, pruning_frequency=pruning_frequency, target_sparsity=target_sparsity)
-            tf.summary.histogram("act_bn_q", conv)
+            tf.summary.histogram("act_q", conv)
             conv = tf.nn.relu(conv)
-            tf.summary.histogram("act_bn_q_r", conv)
+            tf.summary.histogram("act_q_r", conv)
             return conv
 
     def conv_block(self, inputs, filters, kernel_size, strides, name, padding='SAME', dilations=[1, 1, 1, 1],
@@ -253,7 +253,7 @@ class VGG16Backbone(object):
             #    conv = tf.layers.batch_normalization(conv, axis=self._bn_axis, momentum=_BATCH_NORM_DECAY, epsilon=_BATCH_NORM_EPSILON, fused=_USE_FUSED_BN, reuse=None)
             #tf.summary.histogram("act_bn", conv)
             conv = tf.nn.relu(conv)
-            tf.summary.histogram("act_bn_q_r", conv)
+            tf.summary.histogram("act_q_r", conv)
             return conv
 
     def ssd_conv_bn_block(self, filters, strides, name, reuse=None):
