@@ -219,6 +219,8 @@ class VGG16Backbone(object):
                 weights_q = q.quantize_and_prune_weights(
                     w=conv_filter, qw_en=qw_en, k=qw_bits, pw_en=pw_en, thresh=threshold_w, begin_pruning=begin_pruning, end_pruning=end_pruning, pruning_frequency=pruning_frequency, target_sparsity=target_sparsity)  # quantize the weights
             tf.summary.histogram("weights_q", weights_q)
+            weights_q_sparsity = tf.nn.zero_fraction(weights_q)
+            tf.summary.histogram("weights_q_sparsity", weights_q_sparsity)
             bias = tf.get_variable('bias', filters)
             conv = tf.nn.conv2d(input=inputs, filter=weights_q, strides=strides, padding=padding, use_cudnn_on_gpu=True,
                                 data_format=data_format, dilations=dilations, name=name)
@@ -234,6 +236,8 @@ class VGG16Backbone(object):
             tf.summary.histogram("act_q", conv)
             conv = tf.nn.relu(conv)
             tf.summary.histogram("act_q_r", conv)
+            act_q_r_sparsity = tf.nn.zero_fraction(conv)
+            tf.summary.histogram("act_q_r_sparsity", act_q_r_sparsity)
             return conv
 
     def conv_block(self, inputs, filters, kernel_size, strides, name, padding='SAME', dilations=[1, 1, 1, 1],
