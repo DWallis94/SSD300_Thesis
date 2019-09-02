@@ -133,6 +133,9 @@ tf.app.flags.DEFINE_boolean(
 ################################################################################
 
 tf.app.flags.DEFINE_string(
+    'class_dataset', 'original',
+    'Which reduced dataset is to be used? One of `original`, `vehicles`, `animals`, `indoor`, `person`.')
+tf.app.flags.DEFINE_string(
     'specify_gpu', '0',
     'Which GPU(s) to use, in a string (e.g. `0,1,2`) If `None`, uses all available.')
 tf.app.flags.DEFINE_float(
@@ -184,6 +187,12 @@ tf.app.flags.DEFINE_float(
 
 
 FLAGS = tf.app.flags.FLAGS
+
+original_dataset = '../VOCROOT_backup/tfrecords'
+vehicles_dataset = '../VOCROOT_vehicles/tfrecords'
+animals_dataset  = '../VOCROOT_animals/tfrecords'
+indoor_dataset   = '../VOCROOT_indoor/tfrecords'
+person_dataset   = '../VOCROOT_person/tfrecords'
 
 # CUDA_VISIBLE_DEVICES
 
@@ -265,11 +274,25 @@ def input_pipeline(dataset_pattern='train-*', add_noise=FLAGS.add_noise, is_trai
         #image_preprocessing_fn = lambda image_, labels_, bboxes_ : ssd_preprocessing.preprocess_image(image_, labels_, bboxes_, out_shape, add_noise=FLAGS.add_noise, is_training=is_training, data_format=FLAGS.data_format, output_rgb=False)
         #anchor_encoder_fn = lambda glabels_, gbboxes_: anchor_encoder_decoder.encode_all_anchors(glabels_, gbboxes_, all_anchors, all_num_anchors_depth, all_num_anchors_spatial)
 
+        if FLAGS.class_set == 'original':
+            data_dir = original_dataset
+        elif FLAGS.class_set == 'vehicles':
+            data_dir = vehicles_dataset
+        elif FLAGS.class_set == 'animals':
+            data_dir = animals_dataset
+        elif FLAGS.class_set == 'indoor':
+            data_dir = indoor_dataset
+        elif FLAGS.class_set == 'person':
+            data_dir = person_dataset
+        else:
+            data_dir = FLAGS.data_dir
+
+
         image, _, shape, loc_targets, cls_targets, match_scores = dataset_common.slim_get_batch(FLAGS.num_classes,
                                                                                                 batch_size,
                                                                                                 ('train' if is_training else 'val'),
                                                                                                 os.path.join(
-                                                                                                    FLAGS.data_dir, dataset_pattern),
+                                                                                                    data_dir, dataset_pattern),
                                                                                                 FLAGS.num_readers,
                                                                                                 FLAGS.num_preprocessing_threads,
                                                                                                 image_preprocessing_fn,
