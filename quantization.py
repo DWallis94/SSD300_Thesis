@@ -19,8 +19,8 @@ def quantize_and_prune_weights(w, qw_en, k, pw_en, thresh, begin_pruning, end_pr
     Implements quantization and pruning as appropriate for weights.
     """
     w_norm = w
-    w_range = tf.reduce_max(w_norm) - tf.reduce_min(w_norm)
-    thresh_dynamic = (abs(thresh)/2)*w_range
+    thresh_dynamic_pos = (abs(thresh)/2)*tf.abs(tf.reduce_max(w_norm))
+    thresh_dynamic_neg = (abs(thresh)/2)*tf.abs(tf.reduce_min(w_norm))
     if not (qw_en or pw_en):
         ## Don't quantize or prune
         return w_norm
@@ -30,15 +30,15 @@ def quantize_and_prune_weights(w, qw_en, k, pw_en, thresh, begin_pruning, end_pr
         return stop_grad(w, w_quant)
     elif not qw_en:
         ## Prune
-        w_prune = prune_simple_ish(w_norm, [-thresh_dynamic, thresh_dynamic], begin_pruning, pruning_frequency)
+        w_prune = prune_simple_ish(w_norm, [-thresh_dynamic_neg, thresh_dynamic_pos], begin_pruning, pruning_frequency)
         return stop_grad(w, w_prune)
     else:
         ## Quantize and Prune
-        #quant_force_val_pos = abs(thresh) + (1 - abs(thresh))/2**np.ceil((k - 1) / 2)
-        #quant_force_val_neg = abs(thresh) + (1 - abs(thresh))/2**np.floor((k - 1) / 2)
-        w_Q_pos = quantize_region_midtread_unbounded_pos(w_norm, np.ceil((k - 1) / 2), abs(thresh)) # Positive quant region
-        w_Q_pos_neg = quantize_region_midtread_unbounded_neg(w_Q_pos, np.floor((k - 1) / 2), -abs(thresh)) # Negative quant region
-        w_Q_P_pos_neg = prune_simple_ish(w_Q_pos_neg, [-thresh_dynamic, thresh_dynamic], begin_pruning, pruning_frequency)
+        #quant_force_val_pos = thresh_dynamic_pos + (1 - thresh_dynamic_pos)/2**np.ceil((k - 1) / 2)
+        #quant_force_val_neg = thresh_dynamic_neg + (1 - thresh_dynamic_neg)/2**np.floor((k - 1) / 2)
+        w_Q_pos = quantize_region_midtread_unbounded_pos(w_norm, np.ceil((k - 1) / 2), thresh_dynamic_pos) # Positive quant region
+        w_Q_pos_neg = quantize_region_midtread_unbounded_neg(w_Q_pos, np.floor((k - 1) / 2), -thresh_dynamic_neg) # Negative quant region
+        w_Q_P_pos_neg = prune_simple_ish(w_Q_pos_neg, [-thresh_dynamic_neg, thresh_dynamic_pos], begin_pruning, pruning_frequency)
         return stop_grad(w, w_Q_P_pos_neg)
 
 
@@ -47,8 +47,7 @@ def quantize_and_prune_activations(a, qa_en, k, pa_en, thresh, begin_pruning, en
     Implements quantization and pruning as appropriate for activations.
     """
     a_norm = a
-    a_range = tf.reduce_max(a_norm) - tf.reduce_min(a_norm)
-    thresh_dynamic = (abs(thresh)/2)*a_range
+    thresh_dynamic_pos = (abs(thresh)/2)*tf.abs(tf.reduce_max(a_norm))
     if not (qa_en or pa_en):
         ## Don't quantize or prune
         return a_norm
@@ -58,13 +57,13 @@ def quantize_and_prune_activations(a, qa_en, k, pa_en, thresh, begin_pruning, en
         return stop_grad(a, a_quant)
     elif not qa_en:
         ## Prune
-        a_prune = prune_simple_ish(a_norm, [-thresh_dynamic, thresh_dynamic], begin_pruning, pruning_frequency)
+        a_prune = prune_simple_ish(a_norm, [0, thresh_dynamic_pos], begin_pruning, pruning_frequency)
         return stop_grad(a, a_prune)
     else:
         ## Quantize and Prune
-        #quant_force_val = abs(thresh) + (1 - abs(thresh))/2**(k-1)
-        a_Q = quantize_region_midtread_unbounded_pos(a_norm, k - 1, abs(thresh)) # quantize positive activation region
-        a_Q_P = prune_simple_ish(a_Q, [0, thresh_dynamic], begin_pruning, pruning_frequency)
+        #quant_force_val = thresh_dynamic_pos + (1 - thresh_dynamic_pos)/2**(k-1)
+        a_Q = quantize_region_midtread_unbounded_pos(a_norm, k - 1, thresh_dynamic_pos) # quantize positive activation region
+        a_Q_P = prune_simple_ish(a_Q, [0, thresh_dynamic_pos], begin_pruning, pruning_frequency)
         return stop_grad(a, a_Q_P)
 
 
