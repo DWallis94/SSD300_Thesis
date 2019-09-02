@@ -248,6 +248,8 @@ class VGG16Backbone(object):
                             inputs.shape[self._bn_axis], filters]
             conv_filter = tf.get_variable('kernel', filter_shape)
             tf.summary.histogram("weights_r", conv_filter)
+            weights_r_sparsity = tf.nn.zero_fraction(conv_filter)
+            tf.summary.histogram("weights_r_sparsity", weights_r_sparsity)
             bias = tf.get_variable('bias', filters)
             conv = tf.nn.conv2d(input=inputs, filter=conv_filter, strides=strides, padding=padding, use_cudnn_on_gpu=True,
                                 data_format=data_format, dilations=dilations, name=name)
@@ -257,7 +259,9 @@ class VGG16Backbone(object):
             #    conv = tf.layers.batch_normalization(conv, axis=self._bn_axis, momentum=_BATCH_NORM_DECAY, epsilon=_BATCH_NORM_EPSILON, fused=_USE_FUSED_BN, reuse=None)
             #tf.summary.histogram("act_bn", conv)
             conv = tf.nn.relu(conv)
-            tf.summary.histogram("act_q_r", conv)
+            tf.summary.histogram("act_r", conv)
+            act_r_sparsity = tf.nn.zero_fraction(conv)
+            tf.summary.histogram("act_r_sparsity", act_r_sparsity)
             return conv
 
     def ssd_conv_bn_block(self, filters, strides, name, reuse=None):
