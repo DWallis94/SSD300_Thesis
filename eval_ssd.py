@@ -106,7 +106,7 @@ tf.app.flags.DEFINE_string(
 ################################################################################
 
 tf.app.flags.DEFINE_string(
-    'class_dataset', 'original',
+    'class_set', 'original',
     'Which reduced dataset is to be used? One of `original`, `vehicles`, `animals`, `indoor`, `person`.')
 tf.app.flags.DEFINE_string(
     'specify_gpu', None,
