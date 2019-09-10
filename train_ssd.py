@@ -46,8 +46,7 @@ tf.app.flags.DEFINE_float(
 tf.app.flags.DEFINE_string(
     'data_dir', '../VOCROOT_backup/tfrecords',
     'The directory where the dataset input data is stored.')
-tf.app.flags.DEFINE_integer(
-    'num_classes', len(dataset_common.VOC_LABELS_reduced), 'Number of classes to use in the dataset.')
+
 tf.app.flags.DEFINE_string(
     'model_dir', './logs/',
     'The directory where the model will be stored.')
@@ -206,6 +205,9 @@ elif FLAGS.class_set == 'person':
     from dataset import dataset_common_person as dataset_common
 else:
     from dataset import dataset_common
+
+tf.app.flags.DEFINE_integer(
+    'num_classes', len(dataset_common.VOC_LABELS_reduced), 'Number of classes to use in the dataset.')
 
 # CUDA_VISIBLE_DEVICES
 

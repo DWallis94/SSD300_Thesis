@@ -33,8 +33,7 @@ from utility import anchor_manipulator
 from utility import draw_toolbox
 
 # scaffold related configuration
-tf.app.flags.DEFINE_integer(
-    'num_classes', len(dataset_common.VOC_LABELS_reduced), 'Number of classes to use in the dataset.')
+
 # model related configuration
 tf.app.flags.DEFINE_integer(
     'train_image_size', 300,
@@ -139,6 +138,9 @@ elif FLAGS.class_set == 'person':
     from dataset import dataset_common_person as dataset_common
 else:
     from dataset import dataset_common
+
+tf.app.flags.DEFINE_integer(
+    'num_classes', len(dataset_common.VOC_LABELS_reduced), 'Number of classes to use in the dataset.')
 
 dataset_lib = ['prc', 'auto']
 
