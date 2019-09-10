@@ -36,6 +36,8 @@ def q_weights(start_step, freq, range, baseline, increment):
         if not os.listdir(save_dir):
             command_scaffold = "python train_ssd.py --batch_size 28 --max_number_of_steps <steps_end> --qw_en --qw_bits <q> --class_set <class_set>"
             command_scaffold = command_scaffold.replace("<steps_end>", str(end_step)).replace("<q>", str(val)).replace("<class_set>", args.class_set)
+            eval_scaffold = "python eval_ssd.py --qw_en --qw_bits <q> --class_set <class_set>".replace("<q>", str(val)).replace("<class_set>", args.class_set)
+            voc_scaffold = "python voc_eval.py --class_set <class_set>".replace("<class_set>", args.class_set)
 
             if not increment or ind == 0:
                 # Copy baseline weights to logs dir
@@ -48,14 +50,17 @@ def q_weights(start_step, freq, range, baseline, increment):
                 f.write(command_scaffold)
                 f.close()
             os.system(command_scaffold)
+            os.system(eval_scaffold)
+            os.system(voc_scaffold)
 
             # Copy output to folder
             for file in os.listdir("./logs/"):
                 file_path = "./logs/" + file
-                if os.path.isfile(file_path):
+                if os.path.isfile(file_path) or file == 'predict':
                     shutil.copy(file_path, save_dir + file)
-                    if not increment:
+                    if not increment or file == 'predict':
                         os.remove(file_path)
+
 
     for file in os.listdir("./logs/"):
         file_path = "./logs/" + file
@@ -75,6 +80,8 @@ def q_activations(start_step, freq, range, baseline, increment):
         if not os.listdir(save_dir):
             command_scaffold = "python train_ssd.py --batch_size 28 --max_number_of_steps <steps_end> --qa_en --qa_bits <q> --class_set <class_set>"
             command_scaffold = command_scaffold.replace("<steps_end>", str(end_step)).replace("<q>", str(val)).replace("<class_set>", args.class_set)
+            eval_scaffold = "python eval_ssd.py --qw_en --qw_bits <q> --class_set <class_set>".replace("<q>", str(val)).replace("<class_set>", args.class_set)
+            voc_scaffold = "python voc_eval.py --class_set <class_set>".replace("<class_set>", args.class_set)
 
             if not increment or ind == 0:
                 # Copy baseline weights to logs dir
@@ -87,13 +94,15 @@ def q_activations(start_step, freq, range, baseline, increment):
                 f.write(command_scaffold)
                 f.close()
             os.system(command_scaffold)
+            os.system(eval_scaffold)
+            os.system(voc_scaffold)
 
             # Copy output to folder
             for file in os.listdir("./logs/"):
                 file_path = "./logs/" + file
-                if os.path.isfile(file_path):
+                if os.path.isfile(file_path) or file == 'predict':
                     shutil.copy(file_path, save_dir + file)
-                    if not increment:
+                    if not increment or file == 'predict':
                         os.remove(file_path)
 
     for file in os.listdir("./logs/"):
@@ -114,6 +123,8 @@ def p_weights(start_step, freq, range, baseline, increment):
         if not os.listdir(save_dir):
             command_scaffold = "python train_ssd.py --batch_size 28 --max_number_of_steps <steps_end> --pw_en --threshold_w <t> --class_set <class_set>"
             command_scaffold = command_scaffold.replace("<steps_end>", str(end_step)).replace("<t>", str(val)).replace("<class_set>", args.class_set)
+            eval_scaffold = "python eval_ssd.py --qw_en --qw_bits <q> --class_set <class_set>".replace("<q>", str(val)).replace("<class_set>", args.class_set)
+            voc_scaffold = "python voc_eval.py --class_set <class_set>".replace("<class_set>", args.class_set)
 
             if not increment or ind == 0:
                 # Copy baseline weights to logs dir
@@ -126,13 +137,15 @@ def p_weights(start_step, freq, range, baseline, increment):
                 f.write(command_scaffold)
                 f.close()
             os.system(command_scaffold)
+            os.system(eval_scaffold)
+            os.system(voc_scaffold)
 
             # Copy output to folder
             for file in os.listdir("./logs/"):
                 file_path = "./logs/" + file
-                if os.path.isfile(file_path):
+                if os.path.isfile(file_path) or file == 'predict':
                     shutil.copy(file_path, save_dir + file)
-                    if not increment:
+                    if not increment or file == 'predict':
                         os.remove(file_path)
 
     for file in os.listdir("./logs/"):
@@ -153,6 +166,8 @@ def p_activations(start_step, freq, range, baseline, increment):
         if not os.listdir(save_dir):
             command_scaffold = "python train_ssd.py --batch_size 28 --max_number_of_steps <steps_end> --pa_en --threshold_a <t> --class_set <class_set>"
             command_scaffold = command_scaffold.replace("<steps_end>", str(end_step)).replace("<t>", str(val)).replace("<class_set>", args.class_set)
+            eval_scaffold = "python eval_ssd.py --qw_en --qw_bits <q> --class_set <class_set>".replace("<q>", str(val)).replace("<class_set>", args.class_set)
+            voc_scaffold = "python voc_eval.py --class_set <class_set>".replace("<class_set>", args.class_set)
 
             if not increment or ind == 0:
                 # Copy baseline weights to logs dir
@@ -165,13 +180,15 @@ def p_activations(start_step, freq, range, baseline, increment):
                 f.write(command_scaffold)
                 f.close()
             os.system(command_scaffold)
+            os.system(eval_scaffold)
+            os.system(voc_scaffold)
 
             # Copy output to folder
             for file in os.listdir("./logs/"):
                 file_path = "./logs/" + file
-                if os.path.isfile(file_path):
+                if os.path.isfile(file_path) or file == 'predict':
                     shutil.copy(file_path, save_dir + file)
-                    if not increment:
+                    if not increment or file == 'predict':
                         os.remove(file_path)
 
     for file in os.listdir("./logs/"):
