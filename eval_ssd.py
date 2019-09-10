@@ -26,7 +26,7 @@ import numpy as np
 from net import ssd_net_high
 from net import ssd_net_low
 
-from dataset import dataset_common
+#from dataset import dataset_common
 from preprocessing import ssd_preprocessing
 from utility import anchor_manipulator
 from utility import scaffolds
@@ -44,11 +44,6 @@ tf.app.flags.DEFINE_integer(
 tf.app.flags.DEFINE_float(
     'gpu_memory_fraction', 1., 'GPU memory fraction to use.')
 # scaffold related configuration
-tf.app.flags.DEFINE_string(
-    'data_dir', '../VOCROOT_backup/tfrecords',
-    'The directory where the dataset input data is stored.')
-tf.app.flags.DEFINE_integer(
-    'num_classes', len(dataset_common.VOC_LABELS_reduced), 'Number of classes to use in the dataset.')
 tf.app.flags.DEFINE_string(
     'model_dir', './logs/',
     'The directory where the model will be stored.')
@@ -163,6 +158,25 @@ vehicles_dataset = '../VOCROOT_vehicles/tfrecords'
 animals_dataset  = '../VOCROOT_animals/tfrecords'
 indoor_dataset   = '../VOCROOT_indoor/tfrecords'
 person_dataset   = '../VOCROOT_person/tfrecords'
+
+if FLAGS.class_set == 'original':
+    from dataset import dataset_common
+elif FLAGS.class_set == 'vehicles':
+    from dataset import dataset_common_vehicles as dataset_common
+elif FLAGS.class_set == 'animals':
+    from dataset import dataset_common_animals as dataset_common
+elif FLAGS.class_set == 'indoor':
+    from dataset import dataset_common_indoor as dataset_common
+elif FLAGS.class_set == 'person':
+    from dataset import dataset_common_person as dataset_common
+else:
+    from dataset import dataset_common
+
+tf.app.flags.DEFINE_integer(
+    'num_classes', len(dataset_common.VOC_LABELS_reduced), 'Number of classes to use in the dataset.')
+tf.app.flags.DEFINE_string(
+    'data_dir', '../VOCROOT_backup/tfrecords',
+    'The directory where the dataset input data is stored.')
 
 # CUDA_VISIBLE_DEVICES
 

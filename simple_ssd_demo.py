@@ -25,7 +25,7 @@ import numpy as np
 
 from net import ssd_net_low
 
-from dataset import dataset_common
+#from dataset import dataset_common
 from preprocessing import ssd_preprocessing
 from utility import anchor_manipulator
 from utility import draw_toolbox
@@ -60,6 +60,9 @@ tf.app.flags.DEFINE_string(
 tf.app.flags.DEFINE_string(
     'model_scope', 'ssd300',
     'Model scope name used to replace the name_scope in checkpoint.')
+tf.app.flags.DEFINE_string(
+    'class_set', 'original',
+    'Which reduced dataset is to be used? One of `original`, `vehicles`, `animals`, `indoor`, `person`.')
 tf.app.flags.DEFINE_float(
     'add_noise', None,
     'Whether to add gaussian noise to the imageset prior to training.')
@@ -106,6 +109,19 @@ tf.app.flags.DEFINE_float(
 
 FLAGS = tf.app.flags.FLAGS
 #CUDA_VISIBLE_DEVICES
+
+if FLAGS.class_set == 'original':
+    from dataset import dataset_common
+elif FLAGS.class_set == 'vehicles':
+    from dataset import dataset_common_vehicles as dataset_common
+elif FLAGS.class_set == 'animals':
+    from dataset import dataset_common_animals as dataset_common
+elif FLAGS.class_set == 'indoor':
+    from dataset import dataset_common_indoor as dataset_common
+elif FLAGS.class_set == 'person':
+    from dataset import dataset_common_person as dataset_common
+else:
+    from dataset import dataset_common
 
 def get_checkpoint():
     if tf.gfile.IsDirectory(FLAGS.checkpoint_path):

@@ -27,7 +27,7 @@ import numpy as np
 from net import ssd_net_high
 from net import ssd_net_low
 
-from dataset import dataset_common
+#from dataset import dataset_common
 from preprocessing import ssd_preprocessing
 from utility import anchor_manipulator
 from utility import draw_toolbox
@@ -71,6 +71,10 @@ tf.app.flags.DEFINE_string(
 tf.app.flags.DEFINE_string(
     'output_data', './output/',
     'Specify the location to output the labelled images.')
+
+tf.app.flags.DEFINE_string(
+    'class_set', 'original',
+    'Which reduced dataset is to be used? One of `original`, `vehicles`, `animals`, `indoor`, `person`.')
 tf.app.flags.DEFINE_boolean(
     'just_labels', False,
     'Should the program just output the labels, or labels + super-imposed images?')
@@ -122,6 +126,19 @@ tf.app.flags.DEFINE_float(
     'Specify the target sparsity for pruning such that pruning will stop once the weight and activation-sparsity reaches this value.')
 
 FLAGS = tf.app.flags.FLAGS
+
+if FLAGS.class_set == 'original':
+    from dataset import dataset_common
+elif FLAGS.class_set == 'vehicles':
+    from dataset import dataset_common_vehicles as dataset_common
+elif FLAGS.class_set == 'animals':
+    from dataset import dataset_common_animals as dataset_common
+elif FLAGS.class_set == 'indoor':
+    from dataset import dataset_common_indoor as dataset_common
+elif FLAGS.class_set == 'person':
+    from dataset import dataset_common_person as dataset_common
+else:
+    from dataset import dataset_common
 
 dataset_lib = ['prc', 'auto']
 

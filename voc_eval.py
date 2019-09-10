@@ -16,6 +16,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import tensorflow as tf
 import sys
 import os
 import numpy as np
@@ -25,7 +26,26 @@ if sys.version_info[0] == 2:
     import xml.etree.cElementTree as ET
 else:
     import xml.etree.ElementTree as ET
-from dataset import dataset_common
+#from dataset import dataset_common
+
+tf.app.flags.DEFINE_string(
+    'class_set', 'original',
+    'Which reduced dataset is to be used? One of `original`, `vehicles`, `animals`, `indoor`, `person`.')
+
+FLAGS = tf.app.flags.FLAGS
+
+if FLAGS.class_set == 'original':
+    from dataset import dataset_common
+elif FLAGS.class_set == 'vehicles':
+    from dataset import dataset_common_vehicles as dataset_common
+elif FLAGS.class_set == 'animals':
+    from dataset import dataset_common_animals as dataset_common
+elif FLAGS.class_set == 'indoor':
+    from dataset import dataset_common_indoor as dataset_common
+elif FLAGS.class_set == 'person':
+    from dataset import dataset_common_person as dataset_common
+else:
+    from dataset import dataset_common
 
 '''
 VOC2007TEST
@@ -271,4 +291,4 @@ def voc_eval(detpath,
     return rec, prec, ap
 
 if __name__ == '__main__':
-        do_python_eval()
+    do_python_eval()
