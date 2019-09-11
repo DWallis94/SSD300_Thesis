@@ -16,9 +16,9 @@ parser.add_argument('--pw', action="store_true",
 parser.add_argument('--pa', action="store_true",
                     help='prune activations sweep?')
 parser.add_argument('--start_step', help='step to begin sweep on.', default=138000)
-parser.add_argument('--freq', help='frequency to change sweep condition.', default=4000)
+parser.add_argument('--freq', help='frequency to change sweep condition.', default=6000)
 parser.add_argument('--class_set', help='which class set to use', default='original')
-parser.add_argument('--q_range', help='range to quantize over', default=[1,2,4,8,16,32])
+parser.add_argument('--q_range', help='range to quantize over', default=np.append(np.linspace(32, 2, 16),1))
 parser.add_argument('--p_range', help='range to prune over', default=np.linspace(0, 1, 21))
 parser.add_argument('--baseline', help='which model dir to use as baseline for model runs', default='./logs/baseline/')
 parser.add_argument('--q_incremental', action="store_true", help='perform incremental quantization?', default=True)
@@ -28,8 +28,8 @@ args = parser.parse_args()
 
 def q_weights(start_step, freq, range, baseline, increment):
     for ind, val in enumerate(range):
-        start_step = start_step + ind*freq
-        end_step = start_step + freq
+        val = int(val)
+        end_step = start_step + (ind+1)*freq
         save_dir = "./logs/" + args.class_set + "/q_weights/" + str(val) + "/"
         if not os.path.isdir(save_dir):
             os.makedirs(save_dir, exist_ok=True)
@@ -56,10 +56,13 @@ def q_weights(start_step, freq, range, baseline, increment):
             # Copy output to folder
             for file in os.listdir("./logs/"):
                 file_path = "./logs/" + file
-                if os.path.isfile(file_path) or file == 'predict':
+                if os.path.isfile(file_path):
                     shutil.copy(file_path, save_dir + file)
-                    if not increment or file == 'predict':
+                    if not increment:
                         os.remove(file_path)
+                elif os.path.isdir(file_path) and file == "predict":
+                    shutil.copytree(file_path, save_dir + file)
+                    shutil.rmtree(file_path)
 
 
     for file in os.listdir("./logs/"):
@@ -67,20 +70,20 @@ def q_weights(start_step, freq, range, baseline, increment):
         if os.path.isfile(file_path):
             os.remove(file_path)
 
-    return start_step
+    return
 
 
 def q_activations(start_step, freq, range, baseline, increment):
     for ind, val in enumerate(range):
-        start_step = start_step + ind*freq
-        end_step = start_step + freq
+        val = int(val)
+        end_step = start_step + (ind+1)*freq
         save_dir = "./logs/" + args.class_set + "/q_act/" + str(val) + "/"
         if not os.path.isdir(save_dir):
             os.makedirs(save_dir, exist_ok=True)
         if not os.listdir(save_dir):
             command_scaffold = "python train_ssd.py --batch_size 28 --max_number_of_steps <steps_end> --qa_en --qa_bits <q> --class_set <class_set>"
             command_scaffold = command_scaffold.replace("<steps_end>", str(end_step)).replace("<q>", str(val)).replace("<class_set>", args.class_set)
-            eval_scaffold = "python eval_ssd.py --qw_en --qw_bits <q> --class_set <class_set>".replace("<q>", str(val)).replace("<class_set>", args.class_set)
+            eval_scaffold = "python eval_ssd.py --qa_en --qa_bits <q> --class_set <class_set>".replace("<q>", str(val)).replace("<class_set>", args.class_set)
             voc_scaffold = "python voc_eval.py --class_set <class_set>".replace("<class_set>", args.class_set)
 
             if not increment or ind == 0:
@@ -100,30 +103,32 @@ def q_activations(start_step, freq, range, baseline, increment):
             # Copy output to folder
             for file in os.listdir("./logs/"):
                 file_path = "./logs/" + file
-                if os.path.isfile(file_path) or file == 'predict':
+                if os.path.isfile(file_path):
                     shutil.copy(file_path, save_dir + file)
-                    if not increment or file == 'predict':
+                    if not increment:
                         os.remove(file_path)
+                elif os.path.isdir(file_path) and file == "predict":
+                    shutil.copytree(file_path, save_dir + file)
+                    shutil.rmtree(file_path)
 
     for file in os.listdir("./logs/"):
         file_path = "./logs/" + file
         if os.path.isfile(file_path):
             os.remove(file_path)
 
-    return start_step
+    return
 
 
 def p_weights(start_step, freq, range, baseline, increment):
     for ind, val in enumerate(range):
-        start_step = start_step + ind*freq
-        end_step = start_step + freq
+        end_step = start_step + (ind+1)*freq
         save_dir = "./logs/" + args.class_set + "/p_weights/" + str(val) + "/"
         if not os.path.isdir(save_dir):
             os.makedirs(save_dir, exist_ok=True)
         if not os.listdir(save_dir):
-            command_scaffold = "python train_ssd.py --batch_size 28 --max_number_of_steps <steps_end> --pw_en --threshold_w <t> --class_set <class_set>"
+            command_scaffold = "python train_ssd.py --batch_size 28 --max_number_of_steps <steps_end> --pw_en --threshold_w <t> --begin_pruning_at_step 0 --pruning_frequency 1 --class_set <class_set>"
             command_scaffold = command_scaffold.replace("<steps_end>", str(end_step)).replace("<t>", str(val)).replace("<class_set>", args.class_set)
-            eval_scaffold = "python eval_ssd.py --qw_en --qw_bits <q> --class_set <class_set>".replace("<q>", str(val)).replace("<class_set>", args.class_set)
+            eval_scaffold = "python eval_ssd.py --pw_en --threshold_w <t> --begin_pruning_at_step 0 --pruning_frequency 1 --class_set <class_set>".replace("<q>", str(val)).replace("<class_set>", args.class_set)
             voc_scaffold = "python voc_eval.py --class_set <class_set>".replace("<class_set>", args.class_set)
 
             if not increment or ind == 0:
@@ -143,30 +148,32 @@ def p_weights(start_step, freq, range, baseline, increment):
             # Copy output to folder
             for file in os.listdir("./logs/"):
                 file_path = "./logs/" + file
-                if os.path.isfile(file_path) or file == 'predict':
+                if os.path.isfile(file_path):
                     shutil.copy(file_path, save_dir + file)
-                    if not increment or file == 'predict':
+                    if not increment:
                         os.remove(file_path)
+                elif os.path.isdir(file_path) and file == "predict":
+                    shutil.copytree(file_path, save_dir + file)
+                    shutil.rmtree(file_path)
 
     for file in os.listdir("./logs/"):
         file_path = "./logs/" + file
         if os.path.isfile(file_path):
             os.remove(file_path)
 
-    return start_step
+    return
 
 
 def p_activations(start_step, freq, range, baseline, increment):
     for ind, val in enumerate(range):
-        start_step = start_step + ind*freq
-        end_step = start_step + freq
+        end_step = start_step + (ind+1)*freq
         save_dir = "./logs/" + args.class_set + "/p_act/" + str(val) + "/"
         if not os.path.isdir(save_dir):
             os.makedirs(save_dir, exist_ok=True)
         if not os.listdir(save_dir):
-            command_scaffold = "python train_ssd.py --batch_size 28 --max_number_of_steps <steps_end> --pa_en --threshold_a <t> --class_set <class_set>"
+            command_scaffold = "python train_ssd.py --batch_size 28 --max_number_of_steps <steps_end> --pa_en --threshold_a <t> --begin_pruning_at_step 0 --pruning_frequency 1 --class_set <class_set>"
             command_scaffold = command_scaffold.replace("<steps_end>", str(end_step)).replace("<t>", str(val)).replace("<class_set>", args.class_set)
-            eval_scaffold = "python eval_ssd.py --qw_en --qw_bits <q> --class_set <class_set>".replace("<q>", str(val)).replace("<class_set>", args.class_set)
+            eval_scaffold = "python eval_ssd.py --pa_en --threshold_a <t> --begin_pruning_at_step 0 --pruning_frequency 1 --class_set <class_set>".replace("<q>", str(val)).replace("<class_set>", args.class_set)
             voc_scaffold = "python voc_eval.py --class_set <class_set>".replace("<class_set>", args.class_set)
 
             if not increment or ind == 0:
@@ -186,32 +193,36 @@ def p_activations(start_step, freq, range, baseline, increment):
             # Copy output to folder
             for file in os.listdir("./logs/"):
                 file_path = "./logs/" + file
-                if os.path.isfile(file_path) or file == 'predict':
+                if os.path.isfile(file_path):
                     shutil.copy(file_path, save_dir + file)
-                    if not increment or file == 'predict':
+                    if not increment:
                         os.remove(file_path)
+                elif os.path.isdir(file_path) and file == "predict":
+                    shutil.copytree(file_path, save_dir + file)
+                    shutil.rmtree(file_path)
 
     for file in os.listdir("./logs/"):
         file_path = "./logs/" + file
         if os.path.isfile(file_path):
             os.remove(file_path)
 
-    return start_step
+    return
 
 
 if __name__ == "__main__":
-    if not pathlib.Path(args.baseline).is_dir():
-        os.mkdir(args.baseline)
+    baseline = "./logs/" + args.class_set + "/baseline/"
+    if not pathlib.Path(baseline).is_dir():
+        os.mkdir(baseline)
     start_step = args.start_step
     freq = args.freq
     class_set = args.class_set
     logs_dir = pathlib.Path("./logs/" + class_set + "/")
     if args.qw:
-        start_step = q_weights(start_step, freq, args.q_range, args.baseline, args.q_incremental)
+        q_weights(start_step, freq, args.q_range, baseline, args.q_incremental)
     if args.qa:
-        start_step = q_activations(start_step, freq, args.q_range, args.baseline, args.q_incremental)
+        q_activations(start_step, freq, args.q_range, baseline, args.q_incremental)
     if args.pw:
-        start_step = p_weights(start_step, freq, args.p_range, args.baseline, args.p_incremental)
+        p_weights(start_step, freq, args.p_range, baseline, args.p_incremental)
     if args.pa:
-        start_step = p_activations(start_step, freq, args.p_range, args.baseline, args.p_incremental)
+        p_activations(start_step, freq, args.p_range, baseline, args.p_incremental)
     exit()
