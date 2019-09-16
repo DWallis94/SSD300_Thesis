@@ -26,7 +26,7 @@ def quantize_and_prune_weights(w, qw_en, k, pw_en, thresh, begin_pruning, end_pr
         return w_norm
     elif not pw_en:
         ## Quantize
-        w_quant = quantize_midtread_unbounded(w_norm, k) # quantize entire weight range
+        w_quant = quantize_midtread_unbounded(w_norm, bits=k) # quantize entire weight range
         return stop_grad(w, w_quant)
     elif not qw_en:
         ## Prune
@@ -36,8 +36,8 @@ def quantize_and_prune_weights(w, qw_en, k, pw_en, thresh, begin_pruning, end_pr
         ## Quantize and Prune
         #quant_force_val_pos = thresh_dynamic_pos + (1 - thresh_dynamic_pos)/2**np.ceil((k - 1) / 2)
         #quant_force_val_neg = thresh_dynamic_neg + (1 - thresh_dynamic_neg)/2**np.floor((k - 1) / 2)
-        w_Q_pos = quantize_region_midtread_unbounded_pos(w_norm, np.ceil((k - 1) / 2), thresh_dynamic_pos) # Positive quant region
-        w_Q_pos_neg = quantize_region_midtread_unbounded_neg(w_Q_pos, np.floor((k - 1) / 2), -thresh_dynamic_neg) # Negative quant region
+        w_Q_pos = quantize_region_midtread_unbounded_pos(w_norm, levels=2**k, thresh_dynamic_pos) # Positive quant region
+        w_Q_pos_neg = quantize_region_midtread_unbounded_neg(w_Q_pos, levels=2**k-1, -thresh_dynamic_neg) # Negative quant region
         w_Q_P_pos_neg = prune_simple_ish(w_Q_pos_neg, [-thresh_dynamic_neg, thresh_dynamic_pos], begin_pruning, pruning_frequency)
         return stop_grad(w, w_Q_P_pos_neg)
 
@@ -53,7 +53,7 @@ def quantize_and_prune_activations(a, qa_en, k, pa_en, thresh, begin_pruning, en
         return a_norm
     elif not pa_en:
         ## Quantize
-        a_quant = quantize_region_midtread_unbounded_pos(a_norm, k, 0) # quantize positive activation range
+        a_quant = quantize_region_midtread_unbounded_pos(a_norm, bits=k, 0) # quantize positive activation range
         return stop_grad(a, a_quant)
     elif not qa_en:
         ## Prune
@@ -62,7 +62,7 @@ def quantize_and_prune_activations(a, qa_en, k, pa_en, thresh, begin_pruning, en
     else:
         ## Quantize and Prune
         #quant_force_val = thresh_dynamic_pos + (1 - thresh_dynamic_pos)/2**(k-1)
-        a_Q = quantize_region_midtread_unbounded_pos(a_norm, k - 1, thresh_dynamic_pos) # quantize positive activation region
+        a_Q = quantize_region_midtread_unbounded_pos(a_norm, levels=2**k-1, thresh_dynamic_pos) # quantize positive activation region
         a_Q_P = prune_simple_ish(a_Q, [0, thresh_dynamic_pos], begin_pruning, pruning_frequency)
         return stop_grad(a, a_Q_P)
 
@@ -70,7 +70,7 @@ def quantize_and_prune_activations(a, qa_en, k, pa_en, thresh, begin_pruning, en
 ################################################################################
 ## Custom Quantization functions                                              ##
 ################################################################################
-def quantize_region_midrise(zr, k, quant_range, epsilon=1e-12):
+def quantize_region_midrise(zr, quant_range, bits=None, levels=None, epsilon=1e-12):
     """
     Quantizes all values in a tensor with magitude within a given range.
 
@@ -80,7 +80,8 @@ def quantize_region_midrise(zr, k, quant_range, epsilon=1e-12):
     """
     min_val = quant_range[0]
     max_val = quant_range[1]
-    levels = 2**k
+    if not levels:
+        levels = 2**bits
     step_size = (max_val - min_val) / levels
     max_quant_step = max_val - step_size / 2
 
@@ -89,7 +90,7 @@ def quantize_region_midrise(zr, k, quant_range, epsilon=1e-12):
 
     return tf.where(tf.logical_and(tf.greater_equal(zr, min_val - epsilon), tf.less_equal(zr, max_val + epsilon)), zr_quant, zr)
 
-def quantize_region_midtread(zr, k, quant_range, epsilon=1e-12):
+def quantize_region_midtread(zr, quant_range, bits=None, levels=None, epsilon=1e-12):
     """
     Quantizes all values in a tensor with magitude within a given range.
 
@@ -99,14 +100,15 @@ def quantize_region_midtread(zr, k, quant_range, epsilon=1e-12):
     """
     min_val = quant_range[0]
     max_val = quant_range[1]
-    levels = 2**k
+    if not levels:
+        levels = 2**bits
     step_size = (max_val - min_val) / (levels - 1)
 
     zr_quant = min_val + step_size * tf.round((zr - min_val) / step_size)
 
     return tf.where(tf.logical_and(tf.greater_equal(zr, min_val - epsilon), tf.less_equal(zr, max_val + epsilon)), zr_quant, zr)
 
-def quantize_region_midtread_unbounded_pos(zr, k, quant_thresh, epsilon=1e-12):
+def quantize_region_midtread_unbounded_pos(zr, quant_thresh, bits=None, levels=None, epsilon=1e-12):
     """
     Quantizes all values in a tensor with magitude greater than a set threshold.
 
@@ -116,8 +118,8 @@ def quantize_region_midtread_unbounded_pos(zr, k, quant_thresh, epsilon=1e-12):
     """
     min_bound = quant_thresh
     max_bound = tf.reduce_max(zr)
-
-    levels = 2**k
+    if not levels:
+        levels = 2**bits
     step_size = (max_bound - min_bound) / (levels - 1)
     max_quant_step = max_bound - step_size / 2
 
@@ -125,7 +127,7 @@ def quantize_region_midtread_unbounded_pos(zr, k, quant_thresh, epsilon=1e-12):
 
     return tf.where(tf.greater_equal(zr, min_bound - epsilon), zr_quant, zr)
 
-def quantize_region_midtread_unbounded_neg(zr, k, quant_thresh, epsilon=1e-12):
+def quantize_region_midtread_unbounded_neg(zr, quant_thresh, bits=None, levels=None, epsilon=1e-12):
     """
     Quantizes all values in a tensor with magitude less than a set threshold.
 
@@ -135,8 +137,8 @@ def quantize_region_midtread_unbounded_neg(zr, k, quant_thresh, epsilon=1e-12):
     """
     min_bound = tf.reduce_min(zr)
     max_bound = quant_thresh
-
-    levels = 2**k
+    if not levels:
+        levels = 2**bits
     step_size = (max_bound - min_bound) / (levels - 1)
     max_quant_step = max_bound - step_size / 2
 
@@ -144,7 +146,7 @@ def quantize_region_midtread_unbounded_neg(zr, k, quant_thresh, epsilon=1e-12):
 
     return tf.where(tf.less_equal(zr, max_bound + epsilon), zr_quant, zr)
 
-def quantize_midtread_unbounded(zr, k, epsilon=1e-12):
+def quantize_midtread_unbounded(zr, bits=None, levels=None, epsilon=1e-12):
     """
     Quantizes all values in a tensor.
 
@@ -152,8 +154,8 @@ def quantize_midtread_unbounded(zr, k, epsilon=1e-12):
     """
     min_bound = tf.reduce_min(zr)
     max_bound = tf.reduce_max(zr)
-
-    levels = 2**k
+    if not levels:
+        levels = 2**bits
     step_size = (max_bound - min_bound) / (levels - 1)
     max_quant_step = max_bound - step_size / 2
 
