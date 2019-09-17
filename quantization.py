@@ -36,8 +36,8 @@ def quantize_and_prune_weights(w, qw_en, k, pw_en, thresh, begin_pruning, end_pr
         ## Quantize and Prune
         #quant_force_val_pos = thresh_dynamic_pos + (1 - thresh_dynamic_pos)/2**np.ceil((k - 1) / 2)
         #quant_force_val_neg = thresh_dynamic_neg + (1 - thresh_dynamic_neg)/2**np.floor((k - 1) / 2)
-        w_Q_pos = quantize_region_midtread_unbounded_pos(w_norm, levels=2**k, thresh_dynamic_pos) # Positive quant region
-        w_Q_pos_neg = quantize_region_midtread_unbounded_neg(w_Q_pos, levels=2**k-1, -thresh_dynamic_neg) # Negative quant region
+        w_Q_pos = quantize_region_midtread_unbounded_pos(w_norm, thresh_dynamic_pos, levels=2**k) # Positive quant region
+        w_Q_pos_neg = quantize_region_midtread_unbounded_neg(w_Q_pos, -thresh_dynamic_neg, levels=2**k-1) # Negative quant region
         w_Q_P_pos_neg = prune_simple_ish(w_Q_pos_neg, [-thresh_dynamic_neg, thresh_dynamic_pos], begin_pruning, pruning_frequency)
         return stop_grad(w, w_Q_P_pos_neg)
 
@@ -53,7 +53,7 @@ def quantize_and_prune_activations(a, qa_en, k, pa_en, thresh, begin_pruning, en
         return a_norm
     elif not pa_en:
         ## Quantize
-        a_quant = quantize_region_midtread_unbounded_pos(a_norm, bits=k, 0) # quantize positive activation range
+        a_quant = quantize_region_midtread_unbounded_pos(a_norm, 0, bits=k) # quantize positive activation range
         return stop_grad(a, a_quant)
     elif not qa_en:
         ## Prune
@@ -62,7 +62,7 @@ def quantize_and_prune_activations(a, qa_en, k, pa_en, thresh, begin_pruning, en
     else:
         ## Quantize and Prune
         #quant_force_val = thresh_dynamic_pos + (1 - thresh_dynamic_pos)/2**(k-1)
-        a_Q = quantize_region_midtread_unbounded_pos(a_norm, levels=2**k-1, thresh_dynamic_pos) # quantize positive activation region
+        a_Q = quantize_region_midtread_unbounded_pos(a_norm, thresh_dynamic_pos, levels=2**k-1) # quantize positive activation region
         a_Q_P = prune_simple_ish(a_Q, [0, thresh_dynamic_pos], begin_pruning, pruning_frequency)
         return stop_grad(a, a_Q_P)
 
