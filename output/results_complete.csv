@@ -1,8 +1,0 @@
-Detection Algorithm, Frame, Detection Class, Detection Probability, left, top, right, bottom, volume
-ssd300, frame_index_014400_to_014463_00049.png, car, 0.746, 42.0, 241.0, 466.0, 434.0, 81832.000000
-ssd300, frame_index_014400_to_014463_00049.png, car, 0.705, 876.0, 327.0, 960.0, 401.0, 6216.000000
-ssd300, frame_index_014464_to_014527_00028.png, car, 0.775, 720.0, 336.0, 942.0, 424.0, 19536.000000
-ssd300, frame_index_014464_to_014527_00028.png, car, 0.682, 701.0, 341.0, 832.0, 407.0, 8646.000000
-ssd300, frame_index_014464_to_014527_00040.png, car, 0.668, 705.0, 336.0, 939.0, 420.0, 19656.000000
-ssd300, frame_index_014464_to_014527_00052.png, car, 0.709, 700.0, 337.0, 953.0, 422.0, 21505.000000
-ssd300, frame_index_014464_to_014527_00052.png, car, 0.518, 694.0, 338.0, 830.0, 412.0, 10064.000000
