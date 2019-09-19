@@ -142,8 +142,6 @@ else:
 tf.app.flags.DEFINE_integer(
     'num_classes', len(dataset_common.VOC_LABELS_reduced), 'Number of classes to use in the dataset.')
 
-dataset_lib = ['prc', 'auto']
-
 # CUDA_VISIBLE_DEVICES
 
 
@@ -261,23 +259,21 @@ def write_images_with_bboxes(image_input, all_labels, all_scores, all_bboxes, sh
 
         saver.restore(sess, get_checkpoint())
 
-        filename_queue = tf.gfile.ListDirectory(
-            os.path.join(FLAGS.input_data, dataset_lib[0]))
+        filename_queue = tf.gfile.ListDirectory(FLAGS.input_data)
 
         for i in filename_queue:
-            for k in dataset_lib:
-                in_filename = in_file + "{}/{}".format(k, i)
-                out_filename = out_file + "{}_{}".format(k, i)
-                np_image = np.array(Image.open(in_filename))
-                if add_noise:
-                    np_image = np.uint8(
-                        np_image + max(np.random.normal(0, FLAGS.add_noise), 0))
-                labels_, scores_, bboxes_ = sess.run([all_labels, all_scores, all_bboxes], feed_dict={
-                                                     image_input: np_image, shape_input: np_image.shape[:-1]})
+            in_filename = in_file + "{}".format(i)
+            out_filename = out_file + "{}".format(i)
+            np_image = np.array(Image.open(in_filename))
+            if FLAGS.add_noise:
+                np_image = np.uint8(
+                    np_image + max(np.random.normal(0, FLAGS.add_noise), 0))
+            labels_, scores_, bboxes_ = sess.run([all_labels, all_scores, all_bboxes], feed_dict={
+                                                 image_input: np_image, shape_input: np_image.shape[:-1]})
 
-                img_to_draw = draw_toolbox.bboxes_draw_on_img(
-                    np_image, labels_, scores_, bboxes_, thickness=2)
-                Image.fromarray(img_to_draw).save(out_filename)
+            img_to_draw = draw_toolbox.bboxes_draw_on_img(
+                np_image, labels_, scores_, bboxes_, thickness=2)
+            Image.fromarray(img_to_draw).save(out_filename)
 
 
 def write_labels_to_file(image_input, all_labels, all_scores, all_bboxes, shape_input, in_file=FLAGS.input_data, out_file=FLAGS.output_data):
@@ -288,35 +284,33 @@ def write_labels_to_file(image_input, all_labels, all_scores, all_bboxes, shape_
         sess.run(init)
 
         saver.restore(sess, get_checkpoint())
-        filename_queue = tf.gfile.ListDirectory(
-            os.path.join(FLAGS.input_data, dataset_lib[0]))
+        filename_queue = tf.gfile.ListDirectory(FLAGS.input_data)
         with open(os.path.join(FLAGS.output_data, 'results_complete.csv'), 'wt') as f:
-            f.write('Vision Type, Detection Algorithm, Frame, Detection Class, Detection Probability, left, top, right, bottom, adj left, adj top, adj right, adj bottom, volume\n')
+            f.write('Detection Algorithm, Frame, Detection Class, Detection Probability, left, top, right, bottom, volume\n')
             for i in filename_queue:
-                for k in dataset_lib:
-                    in_filename = in_file + "{}/{}".format(k, i)
-                    out_filename = out_file + "{}_{}".format(k, i)
-                    img = Image.open(in_filename)
-                    classes, scores, bboxes = sess.run([all_labels, all_scores, all_bboxes], feed_dict={
-                                                       image_input: img, shape_input: img.shape[:-1]})
+                in_filename = in_file + "{}".format(i)
+                out_filename = out_file + "{}".format(i)
+                img = Image.open(in_filename)
+                classes, scores, bboxes = sess.run([all_labels, all_scores, all_bboxes], feed_dict={
+                                                   image_input: img, shape_input: np.array(img).shape[:-1]})
 
-                    shape = img.shape
+                shape = np.array(img).shape
 
-                    for j in range(bboxes.shape[0]):
-                        if classes[j] < 1:
-                            continue
-                        bbox = bboxes[j]
+                for j in range(bboxes.shape[0]):
+                    if classes[j] < 1:
+                        continue
+                    bbox = bboxes[j]
 
-                        top = int(bbox[0] * shape[0])
-                        left = int(bbox[1] * shape[1])
-                        bottom = int(bbox[2] * shape[0])
-                        right = int(bbox[3] * shape[1])
-                        if (right - left < 1) or (bottom - top < 1) or scores[j] < 0.5:
-                            continue
+                    top = int(bbox[0] * shape[0])
+                    left = int(bbox[1] * shape[1])
+                    bottom = int(bbox[2] * shape[0])
+                    right = int(bbox[3] * shape[1])
+                    if (right - left < 1) or (bottom - top < 1) or scores[j] < 0.5:
+                        continue
 
-                        f.write('{}, ssd300, {:s}, {}, {:.3f}, {:.1f}, {:.1f}, {:.1f}, {:.1f}, , , , , {:0f}\n'.
-                                format(k, i, label2name_table[classes[j]], scores[j],
-                                       left, top, right, bottom, (right - left) * (bottom - top)))
+                    f.write('ssd300, {:s}, {}, {:.3f}, {:.1f}, {:.1f}, {:.1f}, {:.1f}, {:0f}\n'.
+                            format(i, label2name_table[classes[j]], scores[j],
+                                   left, top, right, bottom, (right - left) * (bottom - top)))
 
 
 def main(_):
@@ -356,11 +350,11 @@ def main(_):
             pred, all_anchors, all_num_anchors_depth, all_num_anchors_spatial)
 
         with tf.variable_scope(FLAGS.model_scope, default_name=None, values=[features], reuse=tf.AUTO_REUSE):
-            backbone = ssd_net_low.VGG16Backbone(params['data_format'])
+            backbone = ssd_net_low.VGG16Backbone(FLAGS.data_format)
             feature_layers = backbone.forward(features, qw_en=FLAGS.qw_en, qa_en=FLAGS.qa_en, qw_bits=FLAGS.qw_bits, qa_bits=FLAGS.qa_bits, pw_en=FLAGS.pw_en, pa_en=FLAGS.pa_en, threshold_w=FLAGS.threshold_w, threshold_a=FLAGS.threshold_a,
-                                              begin_pruning=FLAGS.begin_pruning_at_step, end_pruning=FLAGS.end_pruning_at_step, pruning_frequency=FLAGS.pruning_frequency, target_sparsity=FLAGS.target_sparsity, training=(mode == tf.estimator.ModeKeys.TRAIN))
+                                              begin_pruning=FLAGS.begin_pruning_at_step, end_pruning=FLAGS.end_pruning_at_step, pruning_frequency=FLAGS.pruning_frequency, target_sparsity=FLAGS.target_sparsity, training=False)
             location_pred, cls_pred = ssd_net_low.multibox_head(
-                feature_layers, params['num_classes'], all_num_anchors_depth, data_format=params['data_format'])
+                feature_layers, FLAGS.num_classes, all_num_anchors_depth, data_format=FLAGS.data_format)
 
             if FLAGS.data_format == 'channels_first':
                 cls_pred = [tf.transpose(pred, [0, 2, 3, 1])

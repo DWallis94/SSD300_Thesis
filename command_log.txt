@@ -1,0 +1,2 @@
+Model on Louis' Server:
+python3 train_ssd.py --batch_size 28 --max_number_of_steps 138000 --qw_en --qa_en --pw_en --pa_en --specify_gpu '0' --qw_bits 34 --qa_bits 33
