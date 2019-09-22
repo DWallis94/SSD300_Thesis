@@ -53,8 +53,8 @@ VOC_LABELS_reduced = {
     'cow': (3, 'Animal'),
     'dog': (4, 'Animal'),
     'horse': (5, 'Animal'),
-    'sheep': (6, 'Animal'),
-    'sofa': (7, 'Indoor'),
+    'person': (6, 'Person'),
+    'sheep': (7, 'Animal'),
 	'background': (8, 'Background'),
 }
 

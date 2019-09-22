@@ -23,12 +23,6 @@ slim = tf.contrib.slim
 
 VOC_LABELS = {
     'none': (0, 'Background'),
-    'person': (1, 'Person'),
-	'background': (2, 'Background'),
-}
-
-VOC_LABELS_reduced = {
-    'none': (0, 'Background'),
     'aeroplane': (1, 'Vehicle'),
     'bicycle': (2, 'Vehicle'),
     'bird': (3, 'Animal'),
@@ -50,6 +44,12 @@ VOC_LABELS_reduced = {
     'train': (19, 'Vehicle'),
     'tvmonitor': (20, 'Indoor'),
 	'background': (21, 'Background'),
+}
+
+VOC_LABELS_reduced = {
+    'none': (0, 'Background'),
+    'person': (1, 'Person'),
+	'background': (2, 'Background'),
 }
 
 COCO_LABELS = {
