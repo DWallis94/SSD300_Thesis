@@ -188,7 +188,7 @@ def get_checkpoint():
 def select_bboxes(scores_pred, bboxes_pred, num_classes, select_threshold):
     selected_bboxes = {}
     selected_scores = {}
-    with tf.name_scope("select_bboxes", [scores_pred, bboxes_pred]):
+    with tf.name_scope("select_bboxes", None, [scores_pred, bboxes_pred]):
         for class_ind in range(1, num_classes - 1):
             class_scores = scores_pred[:, class_ind]
 
@@ -277,7 +277,7 @@ def parse_by_class(
     nms_topk,
     nms_threshold,
 ):
-    with tf.name_scope("select_bboxes", [cls_pred, bboxes_pred]):
+    with tf.name_scope("select_bboxes", None, [cls_pred, bboxes_pred]):
         scores_pred = tf.nn.softmax(cls_pred)
         selected_bboxes, selected_scores = select_bboxes(
             scores_pred, bboxes_pred, num_classes, select_threshold
@@ -393,29 +393,28 @@ def write_labels_to_file(
 
                 shape = np.array(img).shape
 
-                for j in range(bboxes.shape[0]):
-                    if classes[j] < 1:
-                        continue
-                    bbox = bboxes[j]
+                for j in range(len(scores)):
+                    if scores[j] > 0.5 and classes[j] >= 1:
+                        bbox = bboxes[j]
 
-                    top = int(bbox[0] * shape[0])
-                    left = int(bbox[1] * shape[1])
-                    bottom = int(bbox[2] * shape[0])
-                    right = int(bbox[3] * shape[1])
-                    if (right - left < 1) or (bottom - top < 1) or scores[j] < 0.5:
+                        top = int(bbox[0] * shape[0])
+                        left = int(bbox[1] * shape[1])
+                        bottom = int(bbox[2] * shape[0])
+                        right = int(bbox[3] * shape[1])
+                        if (right - left > 0) and (bottom - top > 0):
 
-                        f.write(
-                            "ssd300, {:s}, {}, {:.3f}, {:.1f}, {:.1f}, {:.1f}, {:.1f}, {:0f}\n".format(
-                                i,
-                                label2name_table[classes[j]],
-                                scores[j],
-                                left,
-                                top,
-                                right,
-                                bottom,
-                                (right - left) * (bottom - top),
+                            f.write(
+                                "ssd300, {:s}, {}, {:.3f}, {:.1f}, {:.1f}, {:.1f}, {:.1f}, {:0f}\n".format(
+                                    i,
+                                    label2name_table[classes[j]],
+                                    scores[j],
+                                    left,
+                                    top,
+                                    right,
+                                    bottom,
+                                    (right - left) * (bottom - top),
+                                )
                             )
-                        )
 
 
 def main(_):
