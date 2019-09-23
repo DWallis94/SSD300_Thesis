@@ -17,6 +17,7 @@ from __future__ import division
 from __future__ import print_function
 
 import os
+import time
 import sys
 
 import tensorflow as tf
@@ -416,6 +417,32 @@ def write_labels_to_file(
                                 )
                             )
 
+def time_ssd(image_input,
+all_labels,
+all_scores,
+all_bboxes,
+shape_input,
+in_file=FLAGS.input_data,
+out_file=FLAGS.output_data,):
+    saver = tf.train.Saver()
+    label2name_table = gain_translate_table()
+    with tf.Session() as sess:
+        init = tf.global_variables_initializer()
+        sess.run(init)
+
+        saver.restore(sess, get_checkpoint())
+        filename_queue = tf.gfile.ListDirectory(FLAGS.input_data)
+        for i in filename_queue:
+            start_time = time.time()
+            in_filename = in_file + "{}".format(i)
+            out_filename = out_file + "{}".format(i)
+            img = Image.open(in_filename)
+            classes, scores, bboxes = sess.run(
+                [all_labels, all_scores, all_bboxes],
+                feed_dict={image_input: img, shape_input: np.array(img).shape[:-1]},
+            )
+            print(in_filename + " time: " + str(time.time() - start_time))
+
 
 def main(_):
     if FLAGS.specify_gpu != None:
@@ -549,6 +576,13 @@ def main(_):
                 shape_input=shape_input,
             )
         write_labels_to_file(
+            image_input=image_input,
+            all_labels=all_labels,
+            all_scores=all_scores,
+            all_bboxes=all_bboxes,
+            shape_input=shape_input,
+        )
+        time_ssd(
             image_input=image_input,
             all_labels=all_labels,
             all_scores=all_scores,
