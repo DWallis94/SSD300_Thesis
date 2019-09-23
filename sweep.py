@@ -22,6 +22,7 @@ parser.add_argument('--q_range', help='range to quantize over', default=np.appen
 parser.add_argument('--p_range', help='range to prune over', default=np.linspace(0, 1, 21))
 parser.add_argument('--q_incremental', action="store_true", help='perform incremental quantization?', default=True)
 parser.add_argument('--p_incremental', action="store_true", help='perform incremental pruning?', default=True)
+parser.add_argument('--specify_gpu', default=None, help='Which GPU to use?')
 
 args = parser.parse_args()
 
@@ -106,6 +107,7 @@ def sweep(start_step, freq, range, baseline, increment, train_cmd, eval_cmd, eva
 
 
 if __name__ == "__main__":
+    os.environ['CUDA_VISIBLE_DEVICES'] = args.specify_gpu
     baseline = "./logs/" + args.class_set + "/baseline/"
     if not pathlib.Path(baseline).is_dir():
         os.mkdir(baseline)
