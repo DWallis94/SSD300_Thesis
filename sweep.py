@@ -107,7 +107,6 @@ def sweep(start_step, freq, range, baseline, increment, train_cmd, eval_cmd, eva
 
 
 if __name__ == "__main__":
-    os.environ['CUDA_VISIBLE_DEVICES'] = args.specify_gpu
     baseline = "./logs/" + args.class_set + "/baseline/"
     if not pathlib.Path(baseline).is_dir():
         os.mkdir(baseline)
@@ -133,6 +132,17 @@ if __name__ == "__main__":
     pa_eval_cmd = "python eval_ssd.py --pa_en --threshold_a <val> --class_set <class_set>".replace("<class_set>", args.class_set)
 
     eval_cmd = "python voc_eval.py --class_set <class_set>".replace("<class_set>", args.class_set)
+
+    if args.specify_gpu is not None:
+        qw_cmd = qw_cmd + " --specify_gpu " + args.specify_gpu
+        qa_cmd = qa_cmd + " --specify_gpu " + args.specify_gpu
+        pw_cmd = pw_cmd + " --specify_gpu " + args.specify_gpu
+        pa_cmd = pa_cmd + " --specify_gpu " + args.specify_gpu
+
+        qw_eval_cmd = qw_eval_cmd + " --specify_gpu " + args.specify_gpu
+        qa_eval_cmd = qa_eval_cmd + " --specify_gpu " + args.specify_gpu
+        pw_eval_cmd = pw_eval_cmd + " --specify_gpu " + args.specify_gpu
+        pa_eval_cmd = pa_eval_cmd + " --specify_gpu " + args.specify_gpu
 
 
     if args.qw:
