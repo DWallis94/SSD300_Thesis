@@ -19,7 +19,7 @@ parser.add_argument('--start_step', help='step to begin sweep on.', default=1380
 parser.add_argument('--freq', help='frequency to change sweep condition.', default=6000)
 parser.add_argument('--class_set', help='which class set to use', default='original')
 parser.add_argument('--q_range', help='range to quantize over', default=np.append(np.linspace(32, 2, 16),1))
-parser.add_argument('--p_range', help='range to prune over', default=np.linspace(0, 1, 21))
+parser.add_argument('--p_range', help='range to prune over', default=np.linspace(0, 0.5, 11))
 parser.add_argument('--q_incremental', action="store_true", help='perform incremental quantization?', default=True)
 parser.add_argument('--p_incremental', action="store_true", help='perform incremental pruning?', default=True)
 parser.add_argument('--specify_gpu', default=None, help='Which GPU to use?')
