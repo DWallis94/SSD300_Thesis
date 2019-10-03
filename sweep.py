@@ -77,9 +77,9 @@ def sweep(start_step, freq, range, baseline, increment, train_cmd, eval_cmd, eva
 
             # Run model
             with open("./logs/command_log.txt", "w+") as f:
-                f.write(cmd1)
-                f.write(cmd2)
-                f.write(eval_generic)
+                f.write(cmd1 + "\n")
+                f.write(cmd2 + "\n")
+                f.write(eval_generic + "\n")
                 f.close()
 
             os.system(cmd1)
