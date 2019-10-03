@@ -66,23 +66,11 @@ def sweep(
             )
             cmd2 = eval_cmd.replace("<val>", str(val))
 
-            if not increment and ind > 0:
-                # Copy baseline weights to logs dir
-                for file in os.listdir("./logs/"):
-                    fname = pathlib.Path("./logs/" + file)
-                    if fname.is_file():
-                        os.remove(str(fname))
-
-                for file in os.listdir(baseline):
-                    fname = pathlib.Path(baseline) / file
-                    if fname.is_file():
-                        shutil.copy(str(fname), pathlib.Path("./logs/" + file))
-
             # Run model
             with open("./logs/command_log.txt", "w+") as f:
-                f.write(cmd1)
-                f.write(cmd2)
-                f.write(voc_cmd)
+                f.write(cmd1 + "\n")
+                f.write(cmd2 + "\n")
+                f.write(voc_cmd + "\n")
                 f.close()
 
             os.system(cmd1)
@@ -94,8 +82,6 @@ def sweep(
                 fname = pathlib.Path("./logs/" + file)
                 if fname.is_file():
                     shutil.copy(str(fname), str(pathlib.Path(save_dir_val) / file))
-                    if not increment:
-                        os.remove(fname)
                 elif fname.is_dir() and file == "predict":
                     shutil.copytree(str(fname), str(pathlib.Path(save_dir_val) / file))
                     shutil.rmtree(str(fname))
