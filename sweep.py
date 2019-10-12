@@ -28,6 +28,8 @@ args = parser.parse_args()
 
 def sweep(start_step, freq, range, baseline, increment, train_cmd, eval_cmd, eval_generic, save_dir):
 
+    prev_ckpt_dir = None
+
     for file in os.listdir('./logs/'):
         fname = pathlib.Path('./logs/' + file)
         if fname.is_file():
@@ -46,7 +48,7 @@ def sweep(start_step, freq, range, baseline, increment, train_cmd, eval_cmd, eva
         dir_files = os.listdir(save_dir_val)
 
         if 'predict' in dir_files:
-            continue
+            prev_ckpt_dir = save_dir_val
 
         elif dir_files:
 
@@ -58,6 +60,7 @@ def sweep(start_step, freq, range, baseline, increment, train_cmd, eval_cmd, eva
             os.system(eval_generic)
 
             shutil.copytree('./logs/predict', str(save_dir_val / 'predict'))
+            prev_ckpt_dir = save_dir_val
 
         else:
             cmd1 = train_cmd.replace("<steps_end>", str(end_step)).replace("<val>", str(val))
@@ -74,6 +77,11 @@ def sweep(start_step, freq, range, baseline, increment, train_cmd, eval_cmd, eva
                     fname = pathlib.Path(baseline) / file
                     if fname.is_file():
                         shutil.copy(str(fname), pathlib.Path('./logs/' + file))
+                        
+            elif prev_ckpt_dir is not None:
+                for file in os.listdir(prev_ckpt_dir):
+                    fname = pathlib.Path(prev_ckpt_dir / file)
+                    shutil.copy(str(fname), "./logs/" + file)
 
             # Run model
             with open("./logs/command_log.txt", "w+") as f:
