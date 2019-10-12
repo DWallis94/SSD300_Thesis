@@ -28,6 +28,7 @@ args = parser.parse_args()
 def sweep(
     layer, start_step, freq, range, baseline, train_cmd, eval_cmd, voc_cmd, save_dir
 ):
+    prev_ckpt_dir = None
 
     for file in os.listdir("./logs/"):
         fname = pathlib.Path("./logs/" + file)
@@ -47,7 +48,7 @@ def sweep(
         dir_files = os.listdir(save_dir_val)
 
         if "predict" in dir_files:
-            continue
+            prev_ckpt_dir = save_dir_val
 
         elif dir_files:
 
@@ -59,8 +60,15 @@ def sweep(
             os.system(voc_cmd)
 
             shutil.copytree("./logs/predict", str(save_dir_val / "predict"))
+            prev_ckpt_dir = save_dir_val
 
         else:
+
+            if prev_ckpt_dir is not None:
+                for file in os.listdir(prev_ckpt_dir):
+                    fname = pathlib.Path(prev_ckpt_dir / file)
+                    shutil.copy(str(fname), "./logs/" + file)
+
             cmd1 = train_cmd.replace("<steps_end>", str(end_step)).replace(
                 "<val>", str(val)
             )
